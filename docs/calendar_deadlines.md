@@ -162,7 +162,7 @@ is sent to the game to repair lateness.
 
 ## Player presentation remains unchanged
 
-Archipelago Status lists tracked unchecked deadlines and says the list is
+The Archipelago window's Deadlines tab lists tracked unchecked deadlines and says the list is
 incomplete. The Day3->4 warning describes the original apartment's noon closure;
 later warnings say access may be lost because a player still inside can finish.
 Charan, Leigh and crossword cutoffs show the required action, missing item and

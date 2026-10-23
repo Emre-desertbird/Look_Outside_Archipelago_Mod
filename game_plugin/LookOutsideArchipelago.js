@@ -8617,6 +8617,17 @@
     let recentDeliveries = [];
     let unshownDeliveries = [];
     let receiptToast = null;
+    // Session-only views for the Archipelago window and log overlay. Names come
+    // from the server's data package; nothing here is saved or changes checks.
+    let apLog = [];
+    let slotInfo = {};
+    let playerAliases = {};
+    let dataPackage = {};
+    let receivedLog = [];
+    let knownCheckedIds = new Set();
+    let knownMissingIds = null;
+    let hudElement = null;
+    let hudSignature = "";
 
     function newPowerState() {
         return { received: false, outageSeen: false, outageInProgress: false,
@@ -8709,6 +8720,15 @@
         unshownDeliveries = [];
         receiptToast?.remove();
         receiptToast = null;
+        apLog = [];
+        slotInfo = {};
+        playerAliases = {};
+        receivedLog = [];
+        knownCheckedIds = new Set();
+        knownMissingIds = null;
+        hudElement?.remove();
+        hudElement = null;
+        hudSignature = "";
         resetBattleTracking();
         connectionGeneration++;
         cancelReconnect();
@@ -8954,7 +8974,7 @@
         if (name === null) return;
         const password = globalThis.prompt("Server password (leave blank if none)", "");
         if (password === null) return;
-        const trimmedUrl = url.trim();
+        const trimmedUrl = url.trim().replace(/^\/connect\s+/i, "").trim();
         const trimmedName = name.trim();
         connectForDevelopment({
             url: trimmedUrl,
@@ -8964,6 +8984,148 @@
         });
         lastServerUrl = trimmedUrl;
         lastSlotName = trimmedName;
+    }
+
+    // ---- Archipelago log (window "Log" tab and the optional overlay) ----
+    // Tones follow Archipelago's text client colours: you, other players,
+    // progression/useful/trap/filler items and locations.
+    const logTones = Object.freeze({ self: "#ee88ee", player: "#f2e6a0", progression: "#c7a8ff",
+        useful: "#8fb2ff", trap: "#ff9a8a", filler: "#7fe3e3", location: "#7fe0a6",
+        entrance: "#8fc8ff", warning: "#f1cc82", error: "#ffb9ad", dim: "#a9a397" });
+    // Message types that are worth a glance during play; others stay in the Log tab.
+    const overlayKinds = new Set(["ItemSend", "ItemCheat", "Hint", "Goal", "Release", "Collect",
+        "Countdown", "Chat", "ServerChat", "local"]);
+
+    function addLog(parts, kind = "local") {
+        apLog.push({ time: Date.now(), kind, parts });
+        if (apLog.length > 200) apLog.shift();
+    }
+
+    function rememberPlayers(packet) {
+        if (packet.slot_info && typeof packet.slot_info === "object") {
+            slotInfo = Object.fromEntries(Object.entries(packet.slot_info)
+                .map(([slot, info]) => [Number(slot), { name: info?.name, game: info?.game }]));
+        }
+        if (Array.isArray(packet.players)) {
+            for (const player of packet.players) {
+                if (Number.isSafeInteger(player?.slot)) playerAliases[player.slot] = player.alias || player.name;
+            }
+        }
+    }
+
+    function rememberDataPackage(games) {
+        if (!games || typeof games !== "object") return;
+        for (const [game, data] of Object.entries(games)) {
+            const invert = table => new Map(Object.entries(table || {}).map(([name, id]) => [id, name]));
+            dataPackage[game] = { items: invert(data?.item_name_to_id), locations: invert(data?.location_name_to_id) };
+        }
+    }
+
+    const playerName = slot => slot === identity?.slot && slot !== undefined ? "You"
+        : playerAliases[slot] || slotInfo[slot]?.name || `Player ${slot}`;
+    const itemName = (id, slot) => dataPackage[slotInfo[slot]?.game]?.items.get(id) ||
+        (slot === identity?.slot ? itemDefinitions?.[id]?.name : null) || `Item ${id}`;
+    const locationName = (id, slot) => dataPackage[slotInfo[slot]?.game]?.locations.get(id) || `Location ${id}`;
+    const itemTone = flags => flags & 4 ? "trap" : flags & 1 ? "progression" : flags & 2 ? "useful" : "filler";
+
+    function locationIdForKey(key) {
+        return developmentLocationIds[key] ??
+            [...activityLocations, ...companionUpgrades].find(entry => entry.key === key)?.apId;
+    }
+
+    function logPrintJson(packet) {
+        if (!Array.isArray(packet.data) || ["Tutorial", "TagsChanged"].includes(packet.type)) return;
+        // Other players' item sends are only shown in the Log tab, never the overlay.
+        const involved = packet.type !== "ItemSend" || packet.receiving === identity?.slot ||
+            packet.item?.player === identity?.slot;
+        const parts = packet.data.map(part => {
+            const value = Number(part.text);
+            switch (part.type) {
+                case "player_id": return { text: playerName(value), tone: value === identity?.slot ? "self" : "player" };
+                case "player_name": return { text: part.text, tone: "player" };
+                case "item_id": return { text: itemName(value, part.player), tone: itemTone(part.flags) };
+                case "item_name": return { text: part.text, tone: itemTone(part.flags) };
+                case "location_id": return { text: locationName(value, part.player), tone: "location" };
+                case "location_name": return { text: part.text, tone: "location" };
+                case "entrance_name": return { text: part.text, tone: "entrance" };
+                default: return { text: String(part.text ?? "") };
+            }
+        });
+        addLog(parts, involved ? packet.type || "message" : "other");
+    }
+
+    const escapeHtml = text => String(text).replace(/[&<>"']/g, char =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    const partsHtml = parts => parts.map(part => part.tone
+        ? `<span style="color:${logTones[part.tone] || "inherit"}">${escapeHtml(part.text)}</span>`
+        : escapeHtml(part.text)).join("");
+
+    // ---- Overlay settings live in the game's Options (config.rmmzsave) ----
+    const configManager = globalThis.ConfigManager;
+    if (configManager?.makeData && configManager?.applyData) {
+        configManager.loaHud = true;
+        configManager.loaHudRight = false;
+        configManager.loaHudLines = 6;
+        const originalMakeData = configManager.makeData;
+        configManager.makeData = function() {
+            const config = originalMakeData.apply(this, arguments);
+            config.loaHud = this.loaHud;
+            config.loaHudRight = this.loaHudRight;
+            config.loaHudLines = this.loaHudLines;
+            return config;
+        };
+        const originalApplyData = configManager.applyData;
+        configManager.applyData = function(config) {
+            originalApplyData.apply(this, arguments);
+            this.loaHud = config?.loaHud !== false;
+            this.loaHudRight = config?.loaHudRight === true;
+            this.loaHudLines = [3, 6, 10].includes(config?.loaHudLines) ? config.loaHudLines : 6;
+        };
+    }
+    const optionsWindow = globalThis.Window_Options?.prototype;
+    if (optionsWindow?.addGeneralOptions) {
+        const originalAddGeneralOptions = optionsWindow.addGeneralOptions;
+        optionsWindow.addGeneralOptions = function() {
+            originalAddGeneralOptions.apply(this, arguments);
+            this.addCommand("Archipelago Log", "loaHud");
+        };
+    }
+
+    function hudVisible() {
+        return active && configManager?.loaHud !== false && !menuDialog && !!globalThis.document?.createElement &&
+            !globalThis.$gameMessage?.isBusy?.();
+    }
+
+    function updateHud() {
+        if (!hudVisible()) {
+            if (hudElement) hudElement.style.display = "none";
+            return;
+        }
+        const lines = apLog.filter(entry => overlayKinds.has(entry.kind)).slice(-(configManager?.loaHudLines || 6));
+        const now = Date.now();
+        // Recent lines stay bright; older ones fade back so the map stays readable.
+        const html = lines.map(entry => `<div style="opacity:${now - entry.time < 20000 ? 1 : 0.55}">` +
+            `${partsHtml(entry.parts)}</div>`).join("");
+        const canvas = globalThis.Graphics?._canvas?.getBoundingClientRect?.();
+        const right = configManager?.loaHudRight === true;
+        const signature = `${html}|${right}|${canvas?.left}|${canvas?.top}|${canvas?.width}`;
+        if (!hudElement) {
+            hudElement = document.createElement("div");
+            hudElement.id = "loa-ap-hud";
+            hudElement.setAttribute("aria-hidden", "true");
+            document.body.append(hudElement);
+        }
+        hudElement.style.display = lines.length ? "block" : "none";
+        if (signature === hudSignature) return;
+        hudSignature = signature;
+        const edge = Math.max(8, (right ? (globalThis.innerWidth - (canvas?.right ?? globalThis.innerWidth))
+            : (canvas?.left ?? 0)) + 8);
+        hudElement.style.cssText = `position:fixed;${right ? "right" : "left"}:${edge}px;` +
+            `top:${Math.max(8, (canvas?.top ?? 0) + 8)}px;max-width:${Math.min(340, (canvas?.width ?? 816) * 0.42)}px;` +
+            "padding:6px 9px;border-radius:5px;background:#0b0c10a8;color:#eee8db;" +
+            "font:12px/1.35 sans-serif;text-shadow:0 1px 2px #000;pointer-events:none;z-index:15;" +
+            `display:${lines.length ? "block" : "none"}`;
+        hudElement.innerHTML = html;
     }
 
     function connectionSummary() {
@@ -9098,10 +9260,11 @@
         return [...pickups, ...quests].join("\n\n");
     }
 
-    function recordDeliveryNotice(definition, fallbackName) {
+    function recordDeliveryNotice(definition, fallbackName, logParts = null) {
         const name = definition.name || fallbackName || "Archipelago item";
         recentDeliveries.push(name);
         if (recentDeliveries.length > 50) recentDeliveries.shift();
+        addLog(logParts || [{ text: "Received " }, { text: name, tone: "useful" }]);
         // Power restoration already has messages tied to its actual outage.
         if (definition.kind !== "switch" || definition.id !== 987) unshownDeliveries.push(name);
     }
@@ -9115,6 +9278,8 @@
         if (receiptToast || !unshownDeliveries.length || globalThis.$gameMessage?.isBusy?.() ||
             globalThis.$gameMap?.isEventRunning?.()) return;
         const names = unshownDeliveries.splice(0);
+        // Deliveries are already in the log; the overlay replaces the toast.
+        if (hudVisible()) return;
         const toast = document.createElement("div");
         toast.id = "loa-ap-receipt";
         toast.setAttribute("role", "status");
@@ -9149,52 +9314,128 @@
         } catch (_) { /* Connection works without persistent preferences. */ }
     }
 
+    // Overview numbers prefer the server's view; offline they fall back to the save.
+    function statusSnapshot() {
+        const localTotal = Object.keys(developmentLocationIds).length +
+            (activityChecks ? activityLocations.length : 0) + (companionChecks ? companionUpgrades.length : 0);
+        const serverTotal = knownMissingIds ? knownCheckedIds.size + knownMissingIds.size : null;
+        const unsynced = [...checkedKeys].filter(key => !knownCheckedIds.has(locationIdForKey(key))).length;
+        const day = globalThis.$gameVariables?.value(15) ?? 0;
+        const hour = globalThis.$gameVariables?.value(16) ?? 0;
+        return {
+            state: connectionState,
+            checked: serverTotal === null ? checkedKeys.size : knownCheckedIds.size,
+            total: serverTotal ?? localTotal,
+            unsynced: connectionState === "connected" ? 0 : unsynced,
+            received: nextItemIndex,
+            waiting: pendingItems.length,
+            goal: !goalCompleted ? "Not yet" : serverMissingChecks === 0 ? "Complete" : "Complete, releasing",
+            day: `Day ${day}, ${String(hour).padStart(2, "0")}:00${dayHold ? " (held)" : ""}`,
+        };
+    }
+
+    const dialogStyle = `
+        #loa-ap-dialog { box-sizing: border-box; width: min(660px, 94vw); max-height: 92vh; overflow: auto;
+            color: #eee8db; background: #16181d; border: 1px solid #6f6758; border-radius: 10px;
+            padding: 18px 20px; font: 15px/1.4 sans-serif; }
+        #loa-ap-dialog::backdrop { background: #000b; }
+        #loa-ap-dialog h2 { margin: 0; font-size: 22px; }
+        #loa-ap-dialog p { margin: 6px 0; }
+        #loa-ap-dialog label { display: block; margin-top: 8px; font-size: 14px; color: #c9c2b3; }
+        #loa-ap-dialog input, #loa-ap-dialog select { box-sizing: border-box; width: 100%; padding: 6px 9px;
+            background: #0e1014; color: #fff; border: 1px solid #5d6168; border-radius: 4px; font: inherit; }
+        #loa-ap-dialog input[type=checkbox] { width: auto; margin-right: 8px; }
+        #loa-ap-dialog button { padding: 7px 14px; border: 1px solid #82858c; border-radius: 4px;
+            font: inherit; color: #fff; background: #353941; cursor: pointer; }
+        #loa-ap-dialog button[type=submit] { background: #6c5530; border-color: #d9b978; }
+        #loa-ap-dialog button:disabled { opacity: .5; cursor: default; }
+        #loa-ap-dialog :focus-visible { outline: 2px solid #f1cc82; outline-offset: 2px; }
+        #loa-ap-dialog .loa-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        #loa-ap-dialog .loa-pill { padding: 2px 10px; border-radius: 999px; font-size: 13px; background: #2a2d33; }
+        #loa-ap-dialog .loa-pill::before { content: "\\25CF  "; }
+        #loa-ap-dialog .loa-pill[data-state=connected] { color: #7fe0a6; }
+        #loa-ap-dialog .loa-pill[data-state=connecting] { color: #f1cc82; }
+        #loa-ap-dialog .loa-pill[data-state=error] { color: #ffb9ad; }
+        #loa-ap-dialog .loa-pill[data-state=disconnected] { color: #a9a397; }
+        #loa-ap-dialog .loa-seed { color: #a9a397; font-size: 13px; overflow-wrap: anywhere; }
+        #loa-ap-dialog .loa-bar { height: 8px; background: #2a2d33; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        #loa-ap-dialog .loa-bar span { display: block; height: 100%; background: linear-gradient(90deg, #8a6a33, #d9b978); }
+        #loa-ap-dialog .loa-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0 8px;
+            border-bottom: 1px solid #3a3d44; }
+        #loa-ap-dialog .loa-tabs button { border: 0; border-radius: 4px 4px 0 0; background: transparent;
+            color: #c9c2b3; padding: 6px 10px; }
+        #loa-ap-dialog .loa-tabs button[aria-selected=true] { background: #2a2d33; color: #f1cc82; }
+        #loa-ap-dialog { scrollbar-color: #4a4d55 #1f2228; }
+        #loa-ap-dialog .loa-panel { height: min(44vh, 300px); overflow: auto; padding-right: 4px; }
+        #loa-ap-dialog select { width: auto; min-width: 140px; }
+        #loa-ap-dialog .loa-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+        #loa-ap-dialog .loa-card { background: #1f2228; border: 1px solid #33363d; border-radius: 6px; padding: 8px 10px; }
+        #loa-ap-dialog .loa-card b { display: block; font-size: 19px; color: #f1cc82; }
+        #loa-ap-dialog .loa-card small { color: #a9a397; }
+        #loa-ap-dialog .loa-list { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+        #loa-ap-dialog .loa-list li { padding: 3px 0; border-bottom: 1px solid #24272d; overflow-wrap: anywhere; }
+        #loa-ap-dialog .loa-muted { color: #a9a397; font-size: 13px; }
+        #loa-ap-dialog .loa-note { color: #f1cc82; white-space: pre-wrap; }
+        #loa-ap-dialog .loa-error { color: #ffb9ad; }
+        #loa-ap-dialog .loa-error:empty, #loa-ap-dialog .loa-note:empty { display: none; }
+        #loa-ap-dialog details summary { cursor: pointer; }
+        #loa-ap-dialog .loa-deadlines { margin-top: 12px; color: #f1cc82; }
+        #loa-ap-dialog .loa-deadlines div, #loa-ap-dialog .loa-deadline-text { white-space: pre-wrap; font-size: 14px; margin-top: 8px; }
+        #loa-ap-dialog .loa-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+            position: sticky; bottom: -18px; background: #16181d; padding: 8px 0; }`;
+
     function showMenuDialog(scene, advance = false) {
         if (!globalThis.document?.createElement) return false;
         menuDialog?.close(false);
         const dialog = document.createElement("dialog");
         dialog.id = "loa-ap-dialog";
         dialog.setAttribute("aria-labelledby", "loa-ap-heading");
-        dialog.innerHTML = `<style>
-            #loa-ap-dialog { box-sizing: border-box; width: min(560px, 92vw); max-height: 90vh;
-                overflow: auto; color: #eee8db; background: #191b20; border: 1px solid #807868;
-                border-radius: 8px; padding: 22px; font: 16px/1.4 sans-serif; }
-            #loa-ap-dialog::backdrop { background: #000b; }
-            #loa-ap-dialog h2 { margin: 0 0 8px; font-size: 25px; }
-            #loa-ap-dialog p { margin: 8px 0; }
-            #loa-ap-dialog label { display: block; margin-top: 10px; }
-            #loa-ap-dialog input { box-sizing: border-box; width: 100%; padding: 7px 10px;
-                background: #0e1014; color: #fff; border: 1px solid #6b6f77; border-radius: 4px; font: inherit; }
-            #loa-ap-dialog button { padding: 8px 15px; border: 1px solid #82858c; border-radius: 4px;
-                font: inherit; color: #fff; background: #353941; cursor: pointer; }
-            #loa-ap-dialog button[type=submit] { background: #6c5530; border-color: #d9b978; }
-            #loa-ap-dialog button:disabled { opacity: .5; cursor: default; }
-            #loa-ap-dialog :focus-visible { outline: 2px solid #f1cc82; outline-offset: 3px; }
-            #loa-ap-dialog .loa-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px;
-                position: sticky; bottom: 0; background: #191b20; padding-top: 8px; }
-            #loa-ap-dialog .loa-status { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
-            #loa-ap-dialog .loa-error { color: #ffb9ad; min-height: 1.5em; }
-            #loa-ap-dialog .loa-error:empty { display: none; }
-            #loa-ap-dialog .loa-deadlines { margin-top: 12px; color: #f1cc82; }
-            #loa-ap-dialog .loa-deadlines div { white-space: pre-wrap; font-size: 14px; margin-top: 8px; }
-        </style><h2 id="loa-ap-heading"></h2><p class="loa-description"></p>
-        <form><div class="loa-fields"></div><p class="loa-error" role="alert"></p>
-        <div class="loa-status" role="status" aria-live="polite"></div>
-        <details class="loa-recent" hidden><summary>Recent items (this session)</summary><div style="white-space:pre-wrap;font-size:14px"></div></details>
-        <details class="loa-deadlines" hidden><summary>Tracked deadlines (not a complete list)</summary><div></div></details>
-        <div class="loa-actions"><button type="submit"></button>
-        <button type="button" class="loa-disconnect">Disconnect</button>
-        <button type="button" class="loa-close">Close</button></div></form>`;
+        const tabs = [["overview", "Overview"], ["log", "Log"], ["items", "Items"],
+            ["locations", "Locations"], ["deadlines", "Deadlines"], ["settings", "Settings"]];
+        dialog.innerHTML = `<style>${dialogStyle}</style><form>` + (advance
+            ? `<h2 id="loa-ap-heading">Go to Next Day</h2><p class="loa-description"></p>
+               <p class="loa-error" role="alert"></p>
+               <details class="loa-deadlines" hidden open><summary>Tracked deadlines (not a complete list)</summary><div></div></details>`
+            : `<div class="loa-head"><h2 id="loa-ap-heading">Archipelago</h2><span class="loa-pill" role="status"></span></div>
+               <p class="loa-seed"></p><div class="loa-bar" aria-hidden="true"><span></span></div>
+               <div class="loa-tabs" role="tablist">${tabs.map(([id, title]) =>
+                   `<button type="button" role="tab" data-tab="${id}">${title}</button>`).join("")}</div>
+               <div class="loa-panel" data-panel="overview" role="tabpanel">
+                 <div class="loa-cards"></div>
+                 <p class="loa-note"></p>
+                 <details class="loa-connection"><summary>Connection settings</summary><div class="loa-fields"></div>
+                   <p class="loa-muted">Paste only the address, for example archipelago.gg:38281. Checks found
+                   offline are sent when you reconnect.</p></details>
+               </div>
+               <div class="loa-panel" data-panel="log" role="tabpanel" hidden><ul class="loa-list loa-log"></ul></div>
+               <div class="loa-panel" data-panel="items" role="tabpanel" hidden><ul class="loa-list loa-items"></ul></div>
+               <div class="loa-panel" data-panel="locations" role="tabpanel" hidden><div class="loa-locations"></div></div>
+               <div class="loa-panel" data-panel="deadlines" role="tabpanel" hidden>
+                 <p class="loa-muted">Tracked deadlines; vanilla quest dates not listed here still apply.</p>
+                 <div class="loa-deadline-text"></div></div>
+               <div class="loa-panel" data-panel="settings" role="tabpanel" hidden>
+                 <label><input type="checkbox" class="loa-hud-toggle">Show the log overlay on the map</label>
+                 <label>Overlay side<select class="loa-hud-side"><option value="left">Left</option>
+                   <option value="right">Right</option></select></label>
+                 <label>Overlay lines<select class="loa-hud-lines"><option>3</option><option>6</option>
+                   <option>10</option></select></label>
+                 <p class="loa-muted">The overlay can also be switched in the game's Options as "Archipelago Log".
+                 It hides during dialogue, menus and battles.</p></div>
+               <p class="loa-error" role="alert"></p>`) +
+            `<div class="loa-actions"><button type="submit"></button>
+             <button type="button" class="loa-disconnect">Disconnect</button>
+             <button type="button" class="loa-close">Close</button></div></form>`;
         const select = value => dialog.querySelector(value);
         const error = select(".loa-error");
-        const status = select(".loa-status");
         const submit = select("button[type=submit]");
         const closeButton = select(".loa-close");
         const disconnect = select(".loa-disconnect");
-        const recent = select(".loa-recent");
-        const deadlines = select(".loa-deadlines");
-        deadlines.open = advance;
         const fields = {};
+        const rendered = new Map();
+        // Only touch the DOM when content changes, so focus and scrolling survive refreshes.
+        const setHtml = (element, html) => {
+            if (rendered.get(element) !== html) { rendered.set(element, html); element.innerHTML = html; }
+        };
         let timer;
         let closed = false;
         const blockGameInput = event => {
@@ -9219,14 +9460,12 @@
             if (reactivate) scene._commandWindow.activate();
         };
         menuDialog = { close };
-        select("h2").textContent = advance ? "Go to Next Day" : "Archipelago";
-        select(".loa-description").textContent = advance
-            ? `Advance from Day ${$gameVariables.value(15)} to Day ${$gameVariables.value(15) + 1}? Vanilla quest deadlines still apply, and checks can become unavailable. You can keep exploring this day. Day 15 is final: unfinished quests do not advance afterward. Any ending requests release of remaining checks; the host must allow release.`
-            : "Checks collected offline are sent when you reconnect. Vanilla quest deadlines still apply, including ones not listed below. Any ending requests release of remaining checks; the host must allow release.";
         submit.textContent = advance ? "Advance day" : "Connect";
         closeButton.textContent = advance ? "Keep exploring" : "Close";
         disconnect.hidden = advance;
-        if (!advance) {
+        if (advance) {
+            select(".loa-description").textContent = `Advance from Day ${$gameVariables.value(15)} to Day ${$gameVariables.value(15) + 1}? Vanilla quest deadlines still apply, and checks can become unavailable. You can keep exploring this day. Day 15 is final: unfinished quests do not advance afterward. Any ending requests release of remaining checks; the host must allow release.`;
+        } else {
             try {
                 const preferences = JSON.parse(globalThis.localStorage?.getItem("lookOutsideArchipelagoConnection") || "null");
                 if (preferences && typeof preferences.url === "string" && typeof preferences.name === "string") {
@@ -9253,22 +9492,116 @@
                 select(".loa-fields").append(label);
                 fields[key] = input;
             }
-        }
-        const refresh = () => {
-            const text = connectionSummary();
-            if (status.textContent !== text) status.textContent = text;
-            recent.hidden = advance || !recentDeliveries.length;
-            const history = recentDeliveries.slice().reverse().join("\n");
-            if (recent.lastElementChild.textContent !== history) recent.lastElementChild.textContent = history;
-            const warnings = deadlineSummary(advance);
-            deadlines.hidden = !warnings;
-            if (deadlines.lastElementChild.textContent !== warnings) deadlines.lastElementChild.textContent = warnings;
-            if (!advance) {
-                submit.disabled = connectionState === "connecting";
-                submit.textContent = connectionState === "connecting" ? "Connecting…" :
-                    connectionState === "connected" ? "Reconnect" : "Connect";
-                disconnect.disabled = !connection && !reconnectTimer;
+            select(".loa-connection").open = connectionState !== "connected";
+            const showTab = id => {
+                for (const button of dialog.querySelectorAll("[data-tab]")) {
+                    button.setAttribute("aria-selected", String(button.dataset.tab === id));
+                }
+                for (const panel of dialog.querySelectorAll("[data-panel]")) panel.hidden = panel.dataset.panel !== id;
+            };
+            for (const button of dialog.querySelectorAll("[data-tab]")) {
+                button.addEventListener("click", () => showTab(button.dataset.tab));
             }
+            showTab("overview");
+            const hudToggle = select(".loa-hud-toggle");
+            const hudSide = select(".loa-hud-side");
+            const hudLines = select(".loa-hud-lines");
+            hudToggle.checked = configManager?.loaHud !== false;
+            hudSide.value = configManager?.loaHudRight ? "right" : "left";
+            hudLines.value = String(configManager?.loaHudLines || 6);
+            const saveHudSettings = () => {
+                if (!configManager) return;
+                configManager.loaHud = hudToggle.checked;
+                configManager.loaHudRight = hudSide.value === "right";
+                configManager.loaHudLines = Number(hudLines.value);
+                try { configManager.save?.(); } catch (_) { /* Settings still apply this session. */ }
+            };
+            for (const control of [hudToggle, hudSide, hudLines]) control.addEventListener("change", saveHudSettings);
+        }
+        const renderOverview = snapshot => {
+            const pill = select(".loa-pill");
+            pill.dataset.state = snapshot.state;
+            pill.textContent = { connected: "Connected", connecting: "Connecting…", error: "Error",
+                disconnected: identity ? "Offline" : "Not connected" }[snapshot.state] || snapshot.state;
+            select(".loa-seed").textContent = identity
+                ? `Seed ${identity.seedName} · ${playerAliases[identity.slot] || slotInfo[identity.slot]?.name || lastSlotName} · ` +
+                    `${connection?.url || lastServerUrl}`
+                : "This save is not linked to a seed yet. Connect before picking anything up.";
+            select(".loa-bar span").style.width = `${snapshot.total ? (100 * snapshot.checked / snapshot.total).toFixed(1) : 0}%`;
+            const owned = companionUpgrades.filter(entry => ownedUpgrades.has(entry.actorId));
+            setHtml(select(".loa-cards"), [
+                ["Checks", `${snapshot.checked} / ${snapshot.total}`, snapshot.unsynced ? `${snapshot.unsynced} waiting to send` : "sent to the server"],
+                ["Items received", snapshot.received, snapshot.waiting ? `${snapshot.waiting} waiting for bag space` : "all delivered"],
+                ["Goal", snapshot.goal, "any real ending counts"],
+                ["Calendar", snapshot.day, dayHold ? "use Go to Next Day" : "running"],
+                ...(companionChecks || owned.length ? [["Upgrades", `${owned.length} / ${companionUpgrades.length}`,
+                    owned.map(entry => entry.name).join(", ") || "none yet"]] : []),
+            ].map(([title, value, note]) => `<div class="loa-card"><small>${escapeHtml(title)}</small>` +
+                `<b>${escapeHtml(value)}</b><small>${escapeHtml(note)}</small></div>`).join(""));
+            const notes = [goalReleaseSummary(), connectionError || "",
+                dayHold && (globalThis.$gameVariables?.value(15) ?? 0) >= 15 ? "Day 15 is final. Finish an ending to release unfinished checks." : ""];
+            select(".loa-note").textContent = notes.filter(Boolean).join("\n");
+        };
+        const renderLists = () => {
+            setHtml(select(".loa-log"), apLog.length
+                ? apLog.slice().reverse().map(entry => `<li${["other", "Join", "Part", "TagsChanged"].includes(entry.kind)
+                    ? ' class="loa-muted"' : ""}>` +
+                    `${partsHtml(entry.parts)}</li>`).join("")
+                : `<li class="loa-muted">Messages from the server appear here once you are connected.</li>`);
+            const itemRows = receivedLog.length
+                ? receivedLog.map((item, index) => item && { item, index }).filter(Boolean).reverse().map(({ item, index }) => {
+                    const waiting = pendingItems.some(entry => entry.index === index);
+                    const own = item.player === identity?.slot;
+                    return `<li>${partsHtml([{ text: itemName(item.item, identity?.slot), tone: itemTone(item.flags) },
+                        ...(own ? [{ text: " found at " }]
+                            : [{ text: " from " }, { text: playerName(item.player), tone: "player" }, { text: " · " }]),
+                        { text: locationName(item.location, item.player), tone: "location" }])}` +
+                        `${waiting ? ' <span class="loa-muted">(waiting for bag space)</span>' : ""}</li>`;
+                })
+                : recentDeliveries.slice().reverse().map(name => `<li>${escapeHtml(name)}</li>`);
+            setHtml(select(".loa-items"), itemRows.join("") ||
+                `<li class="loa-muted">No items received yet.</li>`);
+            const myGame = dataPackage[slotInfo[identity?.slot]?.game];
+            if (!knownMissingIds || !myGame) {
+                setHtml(select(".loa-locations"), `<p class="loa-muted">${checkedKeys.size} locations checked in this save. ` +
+                    "Connect to see which locations are still missing.</p>");
+            } else {
+                const areas = new Map();
+                for (const [ids, done] of [[knownCheckedIds, true], [knownMissingIds, false]]) {
+                    for (const id of ids) {
+                        const name = myGame.locations.get(id);
+                        if (!name) continue;
+                        const area = name.includes(" - ") ? name.slice(0, name.indexOf(" - ")) : "Other";
+                        if (!areas.has(area)) areas.set(area, { done: 0, missing: [] });
+                        if (done) areas.get(area).done++;
+                        else areas.get(area).missing.push(name.slice(area.length + 3) || name);
+                    }
+                }
+                const rows = [...areas].sort(([a], [b]) => a.localeCompare(b)).map(([area, { done, missing }]) =>
+                    missing.length
+                        ? `<details><summary>${escapeHtml(area)} <span class="loa-muted">${done} / ${done + missing.length}</span></summary>` +
+                            `<ul class="loa-list">${missing.sort().map(name => `<li>${escapeHtml(name)}</li>`).join("")}</ul></details>`
+                        : `<p class="loa-muted">${escapeHtml(area)} ${done} / ${done} ✓</p>`);
+                setHtml(select(".loa-locations"), `<p class="loa-muted">Missing does not mean reachable: quests, ` +
+                    `dates and fights can still block a location.</p>${rows.join("")}`);
+            }
+            const warnings = deadlineSummary(false);
+            select(".loa-deadline-text").textContent = warnings || "No tracked deadlines are open.";
+        };
+        const refresh = () => {
+            if (advance) {
+                const deadlines = select(".loa-deadlines");
+                const warnings = deadlineSummary(true);
+                deadlines.hidden = !warnings;
+                if (deadlines.lastElementChild.textContent !== warnings) deadlines.lastElementChild.textContent = warnings;
+                return;
+            }
+            renderOverview(statusSnapshot());
+            renderLists();
+            submit.disabled = connectionState === "connecting";
+            submit.textContent = connectionState === "connecting" ? "Connecting…" :
+                connectionState === "connected" ? "Reconnect" : "Connect";
+            disconnect.disabled = !connection && !reconnectTimer;
         };
         select("form").addEventListener("submit", event => {
             event.preventDefault();
@@ -9280,14 +9613,17 @@
                     scene.popScene();
                     return;
                 }
-                let url = fields.url.value.trim();
+                // Room pages show "/connect host:port"; accept that line as pasted.
+                let url = fields.url.value.trim().replace(/^\/connect\s+/i, "").trim();
                 if (!url.includes("://")) url = `ws://${url}`;
+                fields.url.value = url;
                 const name = fields.name.value.trim();
                 connectForDevelopment({ url, name, password: fields.password.value, uuid: connectionUuid() });
                 rememberConnection(url, name);
                 fields.password.value = "";
             } catch (failure) {
                 error.textContent = failure.message;
+                select(".loa-connection")?.setAttribute("open", "");
             }
             refresh();
         });
@@ -9300,7 +9636,8 @@
         globalThis.Input?.clear();
         globalThis.TouchInput?.clear();
         dialog.showModal();
-        (advance ? closeButton : fields.name.value ? fields.url : fields.name).focus();
+        (advance ? closeButton : connectionState === "connected" ? select("[data-tab]")
+            : fields.name.value ? fields.url : fields.name).focus();
         refresh();
         timer = setInterval(refresh, 400);
         return true;
@@ -9406,7 +9743,9 @@
                     names.push(gameItem.name);
                 }
                 pendingItems.splice(pendingItems.indexOf(entry), 1);
-                recordDeliveryNotice({ ...definition, name: `${definition.name}: ${names.join(", ") || "nothing (bag full)"}` });
+                recordDeliveryNotice({ ...definition, name: `${definition.name}: ${names.join(", ") || "nothing (bag full)"}` },
+                    null, [{ text: `${definition.name}: `, tone: "filler" },
+                        { text: names.join(", ") || "nothing, your bag was full" }]);
                 continue;
             }
             if (definition.kind === "upgrade") {
@@ -9414,7 +9753,9 @@
                 // packet or reload can never stack an upgrade twice.
                 ownedUpgrades.add(definition.id);
                 pendingItems.splice(pendingItems.indexOf(entry), 1);
-                recordDeliveryNotice(definition);
+                const upgrade = companionUpgrades.find(row => row.actorId === definition.id);
+                recordDeliveryNotice(definition, null, upgrade && [{ text: `${upgrade.name} upgrade: `, tone: "useful" },
+                    { text: upgrade.passive, tone: "progression" }, { text: ` (${upgrade.summary})` }]);
                 globalThis.$gamePlayer?.refresh?.();
                 continue;
             }
@@ -9534,6 +9875,8 @@
         connectionError = null;
         serverReleasePermission = null;
         serverMissingChecks = null;
+        knownCheckedIds = new Set();
+        knownMissingIds = null;
 
         function scheduleReconnect(retryOptions = options) {
             if (options.autoReconnect === false) return;
@@ -9570,10 +9913,13 @@
                     checkedKeys.add(key);
                     serverCheckedIds.add(id);
                 }
+                knownCheckedIds.add(id);
+                knownMissingIds?.delete(id);
             }
             serverMissingChecks = keyByLocationId.size - serverCheckedIds.size;
         }
         function fail(message) {
+            addLog([{ text: `Connection error: ${message}`, tone: "error" }], "local");
             connectionError = message;
             connectionState = "error";
             active = identity !== null;
@@ -9648,7 +9994,14 @@
                         if (companionChecks) {
                             for (const entry of companionUpgrades) keyByLocationId.set(entry.apId, entry.key);
                         }
+                        knownMissingIds = new Set(Array.isArray(packet.missing_locations) ? packet.missing_locations : []);
                         acceptServerChecks(packet.checked_locations || []);
+                        rememberPlayers(packet);
+                        // Names for every game in this room; used only for display.
+                        const games = [...new Set(Object.values(slotInfo).map(info => info.game).filter(Boolean))];
+                        if (games.length) send([{ cmd: "GetDataPackage", games }]);
+                        addLog([{ text: "Connected to " }, { text: serverUrl.host, tone: "location" },
+                            { text: " as " }, { text: playerAliases[packet.slot] || options.name, tone: "self" }], "local");
                         connectionState = "connected";
                         connectionError = null;
                         rememberConnection(options.url, options.name);
@@ -9667,7 +10020,12 @@
                         sendChecks([...checkedKeys]);
                         recordPresentCompanions();
                         if (goalCompleted) goalReporter();
+                    } else if (packet.cmd === "DataPackage") {
+                        rememberDataPackage(packet.data?.games);
+                    } else if (packet.cmd === "PrintJSON") {
+                        logPrintJson(packet);
                     } else if (packet.cmd === "RoomUpdate") {
+                        rememberPlayers(packet);
                         if (packet.permissions?.release !== undefined) {
                             serverReleasePermission = packet.permissions.release;
                             if (goalCompleted && serverMissingChecks !== 0) goalReporter?.();
@@ -9679,6 +10037,9 @@
                         throw new Error(`Connection refused: ${(packet.errors || []).join(", ")}`);
                     } else if (packet.cmd === "ReceivedItems") {
                         if (connectionState !== "connected") continue;
+                        if (Number.isSafeInteger(packet.index) && Array.isArray(packet.items)) {
+                            packet.items.forEach((item, offset) => { receivedLog[packet.index + offset] = { ...item }; });
+                        }
                         if (!queueReceivedItems(packet.index, packet.items)) {
                             send([{ cmd: "Sync" }]);
                             sendChecks([...checkedKeys]);
@@ -9715,6 +10076,9 @@
                     return;
                 }
                 if (connectionState !== "error") {
+                    if (connectionState === "connected") {
+                        addLog([{ text: "Disconnected. Checks are kept and sent when you reconnect.", tone: "warning" }], "local");
+                    }
                     connectionState = "disconnected";
                     // If neither handshake opened, retry the originally
                     // requested transport after backoff. Once TLS opens, all
@@ -9785,6 +10149,12 @@
             globalThis.$gameMap?.requestRefresh();
         }
         console.info(`[${pluginName}] checked ${source.key}`);
+        if (connectionState !== "connected") {
+            const id = locationIdForKey(source.key);
+            const known = id !== undefined && dataPackage[slotInfo[identity?.slot]?.game]?.locations.get(id);
+            addLog([{ text: "Checked " }, { text: known || source.name || "a location", tone: "location" },
+                { text: " offline; it is sent when you reconnect." }], "local");
+        }
         if (notifySilent && source.messageIndex === undefined) {
             globalThis.$gameMessage?.add("Archipelago location checked.");
         }
@@ -10426,12 +10796,14 @@
             deliverPendingItems();
             updatePowerPresentation();
             updateDeliveryPresentation();
+            updateHud();
             return result;
         };
         const originalMapTerminate = sceneMap.terminate;
         sceneMap.terminate = function() {
             receiptToast?.remove();
             receiptToast = null;
+            if (hudElement) hudElement.style.display = "none";
             return originalMapTerminate?.apply(this, arguments);
         };
     }
@@ -10497,8 +10869,7 @@
         menuCommand.addOriginalCommands = function() {
             originalAddOriginalCommands.apply(this, arguments);
             if (globalThis.process?.env?.LOA_DEV_MODE === "1" || identity) {
-                this.addCommand("Archipelago Connect", "loaConnect", true);
-                this.addCommand("Archipelago Status", "loaStatus", true);
+                this.addCommand("Archipelago", "loaArchipelago", true);
             }
             if (active && identity && dayHold &&
                 globalThis.$gameVariables?.value(15) < 15) {
@@ -10508,19 +10879,17 @@
         const originalCreateCommandWindow = sceneMenu.createCommandWindow;
         sceneMenu.createCommandWindow = function() {
             originalCreateCommandWindow.apply(this, arguments);
-            this._commandWindow.setHandler("loaConnect", () => {
+            this._commandWindow.setHandler("loaArchipelago", () => {
                 if (showMenuDialog(this)) return;
+                // Without a browser dialog (tests/headless), prompt to connect,
+                // otherwise show the plain-text summary.
                 try {
-                    connectFromMenu();
+                    if (connectionState === "disconnected" && !connection && !identity) connectFromMenu();
+                    else globalThis.alert?.(connectionSummary());
                 } catch (error) {
                     console.error(`[${pluginName}] connection setup failed`, error);
                     globalThis.alert?.(error.message);
                 }
-                this._commandWindow.activate();
-            });
-            this._commandWindow.setHandler("loaStatus", () => {
-                if (showMenuDialog(this)) return;
-                globalThis.alert?.(connectionSummary());
                 this._commandWindow.activate();
             });
             this._commandWindow.setHandler("loaNextDay", () => {
@@ -10584,6 +10953,7 @@
         presentItemsForDevelopment() {
             if (globalThis.process?.env?.LOA_DEV_MODE !== "1") throw new Error("Development presentation requires LOA_DEV_MODE=1");
             updateDeliveryPresentation();
+            updateHud();
         },
         get nextItemIndex() { return nextItemIndex; },
         get connectionState() { return connectionState; },
@@ -10591,6 +10961,9 @@
         get goalCompleted() { return goalCompleted; },
         goalReleaseSummary() { return goalReleaseSummary(); },
         get elevatorFreakDefeated() { return elevatorFreakDefeated; },
+        logEntries() {
+            return apLog.map(entry => ({ kind: entry.kind, text: entry.parts.map(part => part.text).join("") }));
+        },
         companionState() {
             return { enabled: companionChecks, owned: [...ownedUpgrades].sort((x, y) => x - y),
                 companions: companionUpgrades.map(entry => ({ ...entry, effect: { ...entry.effect } })) };

@@ -20,7 +20,7 @@ separate game copy; this project's installed Steam directory stays read-only.
   quest or collecting unchecked locations from another player's world. The
   controlled two-player Rose fixture passes; repeat this during an ordinary run.
 - Resolve a quest by refusal or an alternate outcome. Check its full resolution
-  group in Archipelago Status without changing the native story result.
+  group in the Archipelago window without changing the native story result.
 - Test power in both orders across separate seeds: receive Power Restored before
   the outage, and repair/check the fuse box before receiving the item.
 - Receive the Radio or Medic-in-a-jar before meeting its giver, use it, then

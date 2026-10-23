@@ -29,13 +29,14 @@ generic home-door ending can finish a run with unfinished quests. The client
 reports completion and requests release of every remaining check; an offline
 ending is saved and reported on reconnect. The host must allow release with
 `release_mode: auto`, `goal`, `enabled`, or `auto-enabled`. A disabled-release
-room requires host intervention, which is shown in Archipelago Status.
+room requires host intervention, which is shown in the Archipelago window.
 The entire Gauntlet stays vanilla. Use the project
 README to stage a separate game copy. The Steam installation is read only for
 this project. Start the staged game with `LOA_DEV_MODE=1` to expose the
-development Archipelago Connect and Status menu commands. The dialog accepts a
-server address, slot name, and optional masked password; it also shows status
-and recent deliveries. Passwords are not saved. Combat preparation remains up
+development **Archipelago** menu command. Its window accepts a server address,
+slot name, and optional masked password, and shows status, the server log,
+received items, missing locations and deadlines. An optional overlay shows recent
+log lines on the map. Passwords are not saved. Combat preparation remains up
 to the player. Quest resolution includes permanent
 Hellen/Dan refusals, Sybil's peaceful Telescope outcome, and Bright Frederic.
 The Radio and Medic-in-a-jar are useful AP items. Their eight-hour and real-new-day

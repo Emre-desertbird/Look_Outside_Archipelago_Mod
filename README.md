@@ -422,20 +422,27 @@ Set-Location "$projectRoot\.local\game-smoke"
 ```
 
 1. Start a **new Survivor Mode game**.
-2. Open **Archipelago Connect** from the in-game menu before taking any audited
-   reward, resolving a tracked quest, or advancing a day.
+2. Open **Archipelago** from the in-game menu before taking any audited
+   reward, resolving a tracked quest, or advancing a day. Connection settings are
+   on its Overview tab.
 3. Enter `localhost:38281` for the local server, the exact YAML player name
    (`LookOutside_Test` in the sample), and a room password if required.
-   Explicit `ws://` and `wss://` addresses are supported.
+   Explicit `ws://` and `wss://` addresses are supported, and a pasted
+   `/connect host:port` line from a room page is accepted.
    Hosted rooms requiring encryption can be entered as `wss://host:port`.
    Current source also retries a failed opening `ws://` connection securely;
    the original `0.0.2-dev74` tagged package requires the explicit secure scheme.
-4. Confirm the bound seed/slot in **Archipelago Status**, then play and save in
+4. Confirm the pill reads **Connected** and the seed/slot line, then play and save in
    the test copy. Server/slot settings are remembered; passwords are masked and
    are not saved.
 
-Status shows connection state, checked locations, queued items, recent deliveries,
-calendar holds, and tracked deadline warnings. Inventory-full items wait in a
+The **Archipelago** window has tabs: **Overview** (connection, checks, items,
+goal, calendar and upgrade cards), **Log** (server messages with player, item and
+location names), **Items** (everything received, sender and location),
+**Locations** (missing checks by area), **Deadlines** and **Settings**. A small
+transparent **log overlay** shows the latest messages on the map; switch it in
+Settings or the game's **Options** as *Archipelago Log*. It hides during dialogue,
+menus and battles. Inventory-full items wait in a
 saved queue; make space for delivery. A three-key bundle needs room for all three.
 After binding, offline checks are saved for reconnect, and already-received queued
 items can deliver on a compatible offline reload. Items that have not reached

@@ -134,6 +134,14 @@ class FakeGameActor {
 }
 globalThis.Game_Party = FakeGameParty;
 globalThis.Game_Actor = FakeGameActor;
+// Minimal Options/config fakes for the overlay setting.
+globalThis.ConfigManager = { makeData() { return { alwaysDash: false }; }, applyData() {} };
+class FakeOptionsWindow {
+    constructor() { this.commands = []; }
+    addGeneralOptions() { this.commands.push("alwaysDash"); }
+    addCommand(name, symbol) { this.commands.push(symbol); }
+}
+globalThis.Window_Options = FakeOptionsWindow;
 require("../game_plugin/LookOutsideArchipelago.js");
 const plugin = globalThis.LookOutsideArchipelago;
 const sliceSlotData = {
@@ -957,7 +965,7 @@ test("normal rollover waits for explicit day advance and runs vanilla newDay", (
     const menu = new FakeMenuWindow();
     menu.addOriginalCommands();
     assert.deepEqual(menu.commands.map(command => command.symbol),
-        ["loaConnect", "loaStatus", "loaNextDay"]);
+        ["loaArchipelago", "loaNextDay"]);
     const menuScene = new FakeSceneMenu();
     menuScene.createCommandWindow();
     variableValues.set(19, 1000); // An action may queue time without calling TimePasses yet.
@@ -974,7 +982,7 @@ test("normal rollover waits for explicit day advance and runs vanilla newDay", (
     const normalMenu = new FakeMenuWindow();
     normalMenu.addOriginalCommands();
     assert.deepEqual(normalMenu.commands.map(command => command.symbol),
-        ["loaConnect", "loaStatus"]);
+        ["loaArchipelago"]);
 
     const cheatDayWrite = new FakeInterpreter(3, 31, 0, 36, 122, dayIncrement);
     cheatDayWrite.command122(dayIncrement);
@@ -993,7 +1001,7 @@ test("normal rollover waits for explicit day advance and runs vanilla newDay", (
     const finalDayMenu = new FakeMenuWindow();
     finalDayMenu.addOriginalCommands();
     assert.deepEqual(finalDayMenu.commands.map(command => command.symbol),
-        ["loaConnect", "loaStatus"]);
+        ["loaArchipelago"]);
     assert.throws(() => plugin.advanceDayForDevelopment(), /final supported/);
     assert.equal(currentDay, 15);
     assert.deepEqual(reservedCommonEvents, []);
@@ -1073,7 +1081,7 @@ test("planetarium hook requires the original common event and all nine sockets",
     variableValues.clear();
 });
 
-test("menu connection uses entered server and slot and exposes connection status", () => {
+test("one Archipelago menu entry connects with the entered server and slot, then shows status", () => {
     class MenuSocket {
         static instances = [];
         constructor(url) {
@@ -1094,7 +1102,7 @@ test("menu connection uses entered server and slot and exposes connection status
     globalThis.WebSocket = MenuSocket;
     const scene = new FakeSceneMenu();
     scene.createCommandWindow();
-    scene._commandWindow.handlers.loaConnect();
+    scene._commandWindow.handlers.loaArchipelago();
     assert.equal(scene._commandWindow.activated, true);
     const socket = MenuSocket.instances.at(-1);
     assert.equal(socket.url, "ws://localhost:38281");
@@ -1104,7 +1112,7 @@ test("menu connection uses entered server and slot and exposes connection status
     assert.match(socket.sent[0].uuid, /^lookoutside-/);
     socket.server({ cmd: "Connected", team: 0, slot: 2, checked_locations: [],
         slot_data: sliceSlotData });
-    scene._commandWindow.handlers.loaStatus();
+    scene._commandWindow.handlers.loaArchipelago();
     assert.match(alerts.at(-1), /Archipelago: connected/);
     assert.match(alerts.at(-1), /menu-seed, team 0, slot 2/);
     socket.close();
@@ -2169,4 +2177,74 @@ test("Supply Cache grants seeded random consumables once and skips full stacks",
         plugin.deactivate();
         DataManager.setupNewGame();
     }
+});
+
+test("Archipelago log names players, items and locations from the data package", () => {
+    class LogSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; LogSocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    DataManager.setupNewGame();
+    plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Sam", password: "", uuid: "log-uuid",
+        WebSocketClass: LogSocket, autoReconnect: false });
+    const socket = LogSocket.instances.at(-1);
+    socket.server({ cmd: "RoomInfo", seed_name: "log-seed" });
+    socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [], missing_locations: [5, 6],
+        slot_info: { 1: { name: "Sam", game: "Look Outside" }, 2: { name: "Link", game: "A Link to the Past" } },
+        players: [{ team: 0, slot: 1, alias: "Sam", name: "Sam" }, { team: 0, slot: 2, alias: "Linky", name: "Link" }],
+        slot_data: sliceSlotData });
+    assert.deepEqual(socket.sent.find(packet => packet.cmd === "GetDataPackage"),
+        { cmd: "GetDataPackage", games: ["Look Outside", "A Link to the Past"] });
+    socket.server({ cmd: "DataPackage", data: { games: {
+        "Look Outside": { item_name_to_id: { "Baseball Bat": 540100015 }, location_name_to_id: { "Apartment 36 - Baseball Bat": 5 } },
+        "A Link to the Past": { item_name_to_id: { "Hookshot": 70 }, location_name_to_id: { "Link's House": 9 } },
+    } } });
+    socket.server({ cmd: "PrintJSON", type: "ItemSend", receiving: 2, item: { item: 70, player: 1, location: 5, flags: 1 },
+        data: [{ type: "player_id", text: "1" }, { text: " sent " }, { type: "item_id", text: "70", player: 2, flags: 1 },
+            { text: " to " }, { type: "player_id", text: "2" }, { text: " (" },
+            { type: "location_id", text: "5", player: 1 }, { text: ")" }] });
+    socket.server({ cmd: "PrintJSON", type: "ItemSend", receiving: 2, item: { item: 70, player: 3, location: 9, flags: 0 },
+        data: [{ text: "someone else's send" }] });
+    socket.server({ cmd: "PrintJSON", type: "Tutorial", data: [{ text: "tutorial text" }] });
+    const entries = plugin.logEntries();
+    assert.match(entries[0].text, /^Connected to localhost:38281 as Sam$/);
+    assert.deepEqual(entries.slice(1), [
+        { kind: "ItemSend", text: "You sent Hookshot to Linky (Apartment 36 - Baseball Bat)" },
+        { kind: "other", text: "someone else's send" },
+    ]);
+    socket.close();
+    assert.match(plugin.logEntries().at(-1).text, /^Disconnected/);
+    DataManager.setupNewGame();
+    assert.deepEqual(plugin.logEntries(), []);
+});
+
+test("pasted /connect lines connect, and the overlay switch is a saved game option", () => {
+    class PasteSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; PasteSocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+    }
+    DataManager.setupNewGame();
+    const entries = ["/connect ws://archipelago.gg:49170", "Paste Test", ""];
+    globalThis.prompt = () => entries.shift();
+    globalThis.WebSocket = PasteSocket;
+    const scene = new FakeSceneMenu();
+    scene.createCommandWindow();
+    scene._commandWindow.handlers.loaArchipelago();
+    assert.equal(PasteSocket.instances.at(-1).url, "ws://archipelago.gg:49170");
+    PasteSocket.instances.at(-1).close();
+    DataManager.setupNewGame();
+
+    const options = new Window_Options();
+    options.addGeneralOptions();
+    assert.deepEqual(options.commands, ["alwaysDash", "loaHud"]);
+    assert.deepEqual(ConfigManager.makeData(), { alwaysDash: false, loaHud: true, loaHudRight: false, loaHudLines: 6 });
+    ConfigManager.applyData({ loaHud: false, loaHudRight: true, loaHudLines: 99 });
+    assert.deepEqual([ConfigManager.loaHud, ConfigManager.loaHudRight, ConfigManager.loaHudLines], [false, true, 6]);
+    ConfigManager.applyData({});
+    assert.equal(ConfigManager.loaHud, true, "older config files default to showing the overlay");
 });

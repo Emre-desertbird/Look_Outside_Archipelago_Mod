@@ -9,6 +9,7 @@ module.exports = async function nativeMenuProbe(slotData) {
     const fs = require("fs");
     const sockets = [];
     const originalUpdateScene = SceneManager.updateScene;
+    const originalHud = ConfigManager.loaHud;
     let scenarios = 0;
     class TestSocket {
         constructor(url) { this.url = url; this.readyState = 1; this.sent = []; sockets.push(this); }
@@ -44,6 +45,8 @@ module.exports = async function nativeMenuProbe(slotData) {
         });
         globalThis.WebSocket = TestSocket;
         localStorage.removeItem(preferencesKey);
+        // The receipt toast is shown only while the log overlay is switched off.
+        ConfigManager.loaHud = false;
         DataManager.setupNewGame();
         $gameMessage.clear();
         $dataMap = JSON.parse(fs.readFileSync("data/Map003.json", "utf8"));
@@ -52,7 +55,7 @@ module.exports = async function nativeMenuProbe(slotData) {
         // The normal menu opens after the apartment's arrival events finish.
         for (const event of $gameMap.events()) event.clearStartingFlag();
         let scene = menu();
-        scene._commandWindow.callHandler("loaConnect");
+        scene._commandWindow.callHandler("loaArchipelago");
         assert.ok(dialog().open);
         assert.equal(scene._commandWindow.active, false);
         assert.ok(["loa-ap-name", "loa-ap-url"].includes(document.activeElement.id), "A connection field must receive focus");
@@ -77,8 +80,16 @@ module.exports = async function nativeMenuProbe(slotData) {
         socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [], slot_data: slotData });
         await waitForRefresh();
         assert.equal(ap.connectionState, "connected");
-        assert.match(control(".loa-status").textContent, /Archipelago: connected/);
-        assert.match(control(".loa-status").textContent, /native-menu-probe/);
+        assert.equal(control(".loa-pill").textContent, "Connected");
+        assert.match(control(".loa-seed").textContent, /native-menu-probe/);
+        assert.match(control(".loa-cards").textContent, /Checks0 \/ 0/);
+        // Tabs switch panels; Log shows the connection line.
+        control('[data-tab="log"]').click();
+        assert.equal(control('[data-panel="log"]').hidden, false);
+        assert.equal(control('[data-panel="overview"]').hidden, true);
+        await waitForRefresh();
+        assert.match(control(".loa-log").textContent, /Connected to localhost:38304/);
+        control('[data-tab="overview"]').click();
         assert.equal(control("#loa-ap-password").value, "");
         assert.deepEqual(JSON.parse(localStorage.getItem(preferencesKey)), {
             url: "ws://localhost:38304", name: "Menu Test",
@@ -91,8 +102,10 @@ module.exports = async function nativeMenuProbe(slotData) {
         ap.presentItemsForDevelopment();
         assert.match(document.querySelector("#loa-ap-receipt").textContent, /Baseball Bat\nPadlock Key/);
         await waitForRefresh();
-        assert.equal(control(".loa-recent").hidden, false);
-        assert.equal(control(".loa-recent div").textContent, "Padlock Key\nBaseball Bat");
+        const itemRows = Array.from(control(".loa-items").children, row => row.textContent);
+        assert.equal(itemRows.length, 2);
+        assert.match(itemRows[0], /^Padlock Key (from|found at)/);
+        assert.match(itemRows[1], /^Baseball Bat (from|found at)/);
         socket.server({ cmd: "ReceivedItems", index: 0, items });
         ap.deliverPendingForDevelopment();
         document.querySelector("#loa-ap-receipt").expiresAt = 0;
@@ -135,7 +148,7 @@ module.exports = async function nativeMenuProbe(slotData) {
         assert.equal(scene._commandWindow.active, true);
         scenarios++;
 
-        scene._commandWindow.callHandler("loaStatus");
+        scene._commandWindow.callHandler("loaArchipelago");
         assert.equal(control("#loa-ap-name").value, "Menu Test");
         assert.equal(control("#loa-ap-password").value, "");
         control("#loa-ap-name").dispatchEvent(new KeyboardEvent("keydown", {
@@ -189,19 +202,45 @@ module.exports = async function nativeMenuProbe(slotData) {
 
         $gameVariables.setValue(16, 12);
         scene = menu();
-        scene._commandWindow.callHandler("loaStatus");
-        assert.match(control(".loa-deadlines div").textContent, /Access may already be lost/);
+        scene._commandWindow.callHandler("loaArchipelago");
+        assert.match(control(".loa-deadline-text").textContent, /Access may already be lost/);
+        // Settings tab writes the overlay preferences used on the map.
+        control('[data-tab="settings"]').click();
+        control(".loa-hud-toggle").checked = true;
+        control(".loa-hud-toggle").dispatchEvent(new Event("change"));
+        control(".loa-hud-side").value = "right";
+        control(".loa-hud-side").dispatchEvent(new Event("change"));
+        assert.deepEqual([ConfigManager.loaHud, ConfigManager.loaHudRight], [true, true]);
         control(".loa-close").click();
+        scenarios++;
+
+        // The overlay shows the latest log lines and hides behind the dialog.
+        ap.presentItemsForDevelopment();
+        const hud = document.querySelector("#loa-ap-hud");
+        assert.equal(hud.style.display, "block");
+        assert.match(hud.textContent, /Received Baseball Bat/);
+        assert.notEqual(hud.style.right, "", "Right-side setting applied");
+        assert.equal(hud.style.pointerEvents, "none");
+        scene._commandWindow.callHandler("loaArchipelago");
+        ap.presentItemsForDevelopment();
+        assert.equal(hud.style.display, "none", "Overlay hidden while the window is open");
+        control(".loa-close").click();
+        ConfigManager.loaHud = false;
+        ap.presentItemsForDevelopment();
+        assert.equal(hud.style.display, "none", "Option switches the overlay off");
+        ConfigManager.loaHudRight = false;
         scenarios++;
 
         DataManager.setupNewGame();
         scene = menu();
-        scene._commandWindow.callHandler("loaConnect");
+        scene._commandWindow.callHandler("loaArchipelago");
         DataManager.setupNewGame();
         assert.equal(dialog(), null, "New game left the previous save's dialog open");
         scenarios++;
         return { scenarios };
     } finally {
+        ConfigManager.loaHud = originalHud;
+        ConfigManager.loaHudRight = false;
         DataManager.setupNewGame();
         globalThis.WebSocket = originalSocket;
         SceneManager.updateScene = originalUpdateScene;

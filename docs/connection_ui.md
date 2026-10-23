@@ -1,7 +1,8 @@
 # Connection and item feedback
 
-The development game menu opens one Archipelago dialog for both Connect and
-Status. It accepts a server address with or without `ws://` or `wss://`, a slot
+The development game menu has one **Archipelago** entry. Its window has
+Overview, Log, Items, Locations, Deadlines and Settings tabs; connection settings
+are on Overview and open automatically while disconnected. It accepts a server address with or without `ws://` or `wss://`, a slot
 name, and an optional masked password. Server and slot are remembered in the local NW.js
 profile. The password is never written to preferences or the AP save field.
 
@@ -28,14 +29,23 @@ as the development API.
 
 Delivered items produce a nonblocking six-second notice when the map is idle.
 Large batches show three names and the number of additional items. The latest
-50 deliveries are available under Recent items in Status, for the current game
-session. Replayed packets and inventory-full queues do not announce an item
+received items are listed on the Items tab with sender and location, for the
+current game session. While the log overlay is on, it replaces this notice.
+
+The Log tab and overlay show the server's messages (item sends, hints, goals,
+chat) with names from the room's data package, plus local lines for connecting,
+offline checks, Supply Cache contents and companion upgrades. Other players'
+item sends stay in the Log tab. The overlay is a small transparent box on the
+left or right edge of the game area, showing the last 3, 6 or 10 lines; older
+lines fade. It is pointer-transparent, hidden during dialogue, menus and battles,
+and switched in Settings or the game's Options (*Archipelago Log*, saved in the
+game config). Nothing it shows changes checks, items or game time. Replayed packets and inventory-full queues do not announce an item
 until it has actually been delivered. Power Restored retains its dedicated
 outage/restoration messages.
 
 Go to Next Day asks for confirmation, with Keep exploring focused by default.
 Confirming advances exactly once through the existing native calendar hook.
-Eight expiring teeth-apartment checks are listed in Status and in the day
+Eight expiring teeth-apartment checks are listed on the Deadlines tab and in the day
 confirmation before their Day 4 noon deadline. Checked entries disappear from
 the list. The broader expiry audit remains unfinished; see `calendar_deadlines.md`.
 
