@@ -1,3 +1,7 @@
 name: LookOutside_Test
 game: Look Outside
-Look Outside: {}
+Look Outside:
+  # Optional cooking/crafting checks that only hold filler. Off by default.
+  activity_checks: false
+  # Optional companion upgrade items plus filler-only "joins the party" checks.
+  companion_upgrades: false

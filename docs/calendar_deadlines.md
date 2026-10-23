@@ -165,6 +165,8 @@ is sent to the game to repair lateness.
 Archipelago Status lists tracked unchecked deadlines and says the list is
 incomplete. The Day3->4 warning describes the original apartment's noon closure;
 later warnings say access may be lost because a player still inside can finish.
+Charan, Leigh and crossword cutoffs show the required action, missing item and
+progress; see `connection_ui.md`. They read native state and never change it.
 Advance Day remains available, with Keep exploring the default. Any real ending
 requests remaining-check release when the server permits it. See `ending_release.md`.
 

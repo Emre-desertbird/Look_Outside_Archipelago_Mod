@@ -1,7 +1,7 @@
 # Complete-run playtest
 
 Record the package version, seed, slot, game build, and difficulty with any issue.
-Use a new Normal save and connect before taking randomized pickups. Test in a
+Use a new Survivor Mode save and connect before taking randomized pickups. Test in a
 separate game copy; this project's installed Steam directory stays read-only.
 
 ## Run to an ending

@@ -39,6 +39,21 @@ Eight expiring teeth-apartment checks are listed in Status and in the day
 confirmation before their Day 4 noon deadline. Checked entries disappear from
 the list. The broader expiry audit remains unfinished; see `calendar_deadlines.md`.
 
+Three audited quest cutoffs are also listed, read from native state:
+- **Charan's Rose** (switch680) closes on Day6; then **Charan's Cave** on Day7 or once
+  the earthquake (switch1097) starts. It says if the Rose (item360) is not in the inventory.
+- **Leigh's Phone**: carry the Phone (item389) home by Day10. Once started
+  (variable900), it shows the remaining new days, an unread message, and that
+  the fourth message needs Leigh living with you (switch34). It flags the quest
+  once the remaining days no longer fit before Day15.
+- **Crossword book**: 100 puzzles (variable491) before Day15, with progress and a
+  note if the book (switch237) is not picked up yet. It is hidden once any
+  Wilhelmina reward is checked.
+
+Status lists every open quest cutoff. Go to Next Day lists one when its day
+is next, or from Day4 (Rose), Day8 (Phone), Day11 (crossword), or the last day
+on which Leigh's remaining steps still fit. Warnings never block advancing.
+
 The dialog uses keyboard and pointer input. It isolates text entry from RPG
 Maker's game key handlers and clears held input on open/close. Scene changes or
 a new game remove the dialog and its status timer. The layout is sized for the

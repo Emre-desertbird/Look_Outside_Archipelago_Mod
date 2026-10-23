@@ -6651,6 +6651,24 @@
         540300115: Object.freeze({"kind": "switch", "id": 115, "name": "Elevator Access"}),
         540300699: Object.freeze({"kind": "switch", "id": 699, "name": "Planetarium Door Access"}),
         540300987: Object.freeze({"kind": "switch", "id": 987, "name": "Power Restored"}),
+        540400002: Object.freeze({"kind": "upgrade", "id": 2, "name": "Lyle Upgrade"}),
+        540400003: Object.freeze({"kind": "upgrade", "id": 3, "name": "Aster Upgrade"}),
+        540400004: Object.freeze({"kind": "upgrade", "id": 4, "name": "Joel Upgrade"}),
+        540400005: Object.freeze({"kind": "upgrade", "id": 5, "name": "Leigh Upgrade"}),
+        540400006: Object.freeze({"kind": "upgrade", "id": 6, "name": "Dan Upgrade"}),
+        540400007: Object.freeze({"kind": "upgrade", "id": 7, "name": "Hellen Upgrade"}),
+        540400008: Object.freeze({"kind": "upgrade", "id": 8, "name": "Rat Child Upgrade"}),
+        540400010: Object.freeze({"kind": "upgrade", "id": 10, "name": "Roaches Upgrade"}),
+        540400011: Object.freeze({"kind": "upgrade", "id": 11, "name": "Ernest Upgrade"}),
+        540400012: Object.freeze({"kind": "upgrade", "id": 12, "name": "Sophie Upgrade"}),
+        540400013: Object.freeze({"kind": "upgrade", "id": 13, "name": "Papineau Upgrade"}),
+        540400014: Object.freeze({"kind": "upgrade", "id": 14, "name": "Montgomery Upgrade"}),
+        540400015: Object.freeze({"kind": "upgrade", "id": 15, "name": "Xaria Upgrade"}),
+        540400016: Object.freeze({"kind": "upgrade", "id": 16, "name": "Morton Upgrade"}),
+        540400019: Object.freeze({"kind": "upgrade", "id": 19, "name": "Spider Upgrade"}),
+        540400022: Object.freeze({"kind": "upgrade", "id": 22, "name": "Audrey Upgrade"}),
+        540400026: Object.freeze({"kind": "upgrade", "id": 26, "name": "Phillippe Upgrade"}),
+        540500001: Object.freeze({"kind": "cache", "id": 1, "name": "Supply Cache"}),
     });
     const locationDeadlines = Object.freeze([
         Object.freeze({"key": "map031_event009_frying_pan", "name": "Apartment 32 - Frying Pan", "day": 4, "hour": 12, "closed_switch": 1062, "group": "Original teeth apartment", "description": "The entrance closes at noon on Day 4. The apartment that opens later does not contain these pickups."}),
@@ -8524,6 +8542,33 @@
         ]
     }
 ]);
+    const activityVersion = 1;
+    const activityLocations = Object.freeze([
+        Object.freeze({"key": "activity_cook_meal_1", "name": "Cooking - First Meal", "apId": 593000001, "meals": 1}),
+        Object.freeze({"key": "activity_cook_meal_3", "name": "Cooking - Third Meal", "apId": 593000003, "meals": 3}),
+        Object.freeze({"key": "activity_craft_1", "name": "Crafting - First Item", "apId": 593000101, "crafts": 1}),
+    ]);
+    const supplyCache = Object.freeze({ rolls: 3, table: [[7, 3], [10, 3], [11, 3], [13, 3], [18, 3], [19, 3], [20, 3], [21, 3], [22, 3], [23, 3], [26, 3], [27, 3], [28, 3], [36, 3], [37, 3], [38, 3], [40, 3], [212, 3], [213, 3], [214, 3], [215, 3], [216, 3], [219, 3], [220, 3], [221, 3], [222, 3], [223, 3], [224, 3], [227, 3], [228, 3], [229, 3], [230, 3], [231, 3], [8, 1], [9, 1], [14, 1], [17, 1], [24, 1], [34, 1], [41, 1], [42, 1], [43, 1], [44, 1], [45, 1], [51, 1], [55, 1], [71, 1], [80, 1], [86, 1], [89, 1], [90, 1], [98, 1], [99, 1], [100, 1]] });
+    const companionVersion = 1;
+    const companionUpgrades = Object.freeze([
+        Object.freeze({"actorId": 2, "name": "Lyle", "key": "companion_join_02", "apId": 594000002, "passive": "Flash Photography", "summary": "Normal attacks may Blind (20%)", "effect": {"traits": [[32, 5, 0.2]]}}),
+        Object.freeze({"actorId": 3, "name": "Aster", "key": "companion_join_03", "apId": 594000003, "passive": "Safety First", "summary": "Enemies target him half as often; +10% evasion", "effect": {"traits": [[23, 0, 0.5], [22, 1, 0.1]]}}),
+        Object.freeze({"actorId": 4, "name": "Joel", "key": "companion_join_04", "apId": 594000004, "passive": "Gum Regrowth", "summary": "Regenerates 5% HP each turn, offsetting his HP-cost teeth skills", "effect": {"traits": [[22, 7, 0.05]]}}),
+        Object.freeze({"actorId": 5, "name": "Leigh", "key": "companion_join_05", "apId": 594000005, "passive": "Unsettling Smile", "summary": "Normal attacks may Stun (12%), setting up Devour", "effect": {"traits": [[32, 15, 0.12]]}}),
+        Object.freeze({"actorId": 6, "name": "Dan", "key": "companion_join_06", "apId": 594000006, "passive": "Loyal Fans", "summary": "Each video intro starts with 5 extra viewers", "effect": {"intro_viewers": 5}}),
+        Object.freeze({"actorId": 7, "name": "Hellen", "key": "companion_join_07", "apId": 594000007, "passive": "Killer Instinct", "summary": "+10% critical hit rate", "effect": {"traits": [[22, 2, 0.1]]}}),
+        Object.freeze({"actorId": 8, "name": "Rat Child", "key": "companion_join_08", "apId": 594000008, "passive": "Daddy's Shadow", "summary": "Starts every battle already copying Sam (Copy Dad), and catches up to two levels below Sam", "effect": {"battle_state": 115, "level_floor_below_leader": 2}}),
+        Object.freeze({"actorId": 10, "name": "Roaches", "key": "companion_join_10", "apId": 594000010, "passive": "Endless Swarm", "summary": "Regenerates 6% HP each turn, fueling HP-cost roach attacks", "effect": {"traits": [[22, 7, 0.06]]}}),
+        Object.freeze({"actorId": 11, "name": "Ernest", "key": "companion_join_11", "apId": 594000011, "passive": "Warm-Up Act", "summary": "The party starts every battle with Song of Speed", "effect": {"party_battle_state": 215}}),
+        Object.freeze({"actorId": 12, "name": "Sophie", "key": "companion_join_12", "apId": 594000012, "passive": "Slippery", "summary": "Starts every battle Hidden; at the end of a turn when she is neither Hidden nor drawing attention, 50% chance to slip back into hiding", "effect": {"battle_state": 146, "rehide_chance": 0.5}}),
+        Object.freeze({"actorId": 13, "name": "Papineau", "key": "companion_join_13", "apId": 594000013, "passive": "Big Guy", "summary": "+20% Max HP, which also strengthens Bear Hug", "effect": {"traits": [[21, 0, 1.2]]}}),
+        Object.freeze({"actorId": 14, "name": "Montgomery", "key": "companion_join_14", "apId": 594000014, "passive": "Iron Stomach", "summary": "Immune to Poison; takes half Fire damage", "effect": {"traits": [[14, 4, 1], [11, 4, 0.5]]}}),
+        Object.freeze({"actorId": 15, "name": "Xaria", "key": "companion_join_15", "apId": 594000015, "passive": "Talks Back", "summary": "20% counterattack chance; immune to Panic", "effect": {"traits": [[22, 6, 0.2], [14, 6, 1]]}}),
+        Object.freeze({"actorId": 16, "name": "Morton", "key": "companion_join_16", "apId": 594000016, "passive": "Scavenger", "summary": "Enemies drop items twice as often while Morton is in the party", "effect": {"traits": [[64, 5, 1]]}}),
+        Object.freeze({"actorId": 19, "name": "Spider", "key": "companion_join_19", "apId": 594000019, "passive": "Venomous", "summary": "Normal attacks may Poison (25%)", "effect": {"traits": [[32, 4, 0.25]]}}),
+        Object.freeze({"actorId": 22, "name": "Audrey", "key": "companion_join_22", "apId": 594000022, "passive": "Coin Return", "summary": "Regenerates 10% STM each turn, fueling Keep the Change", "effect": {"traits": [[22, 8, 0.1]]}}),
+        Object.freeze({"actorId": 26, "name": "Phillippe", "key": "companion_join_26", "apId": 594000026, "passive": "Spore Cloud", "summary": "Normal attacks may infect with Spore Poison (30%), which Assume Control needs", "effect": {"traits": [[32, 25, 0.3]]}}),
+    ]);
     // END GENERATED DEVELOPMENT REGISTRY
 
     const saveKey = "lookOutsideArchipelago";
@@ -8548,6 +8593,12 @@
     let serverReleasePermission = null;
     let serverMissingChecks = null;
     let elevatorFreakDefeated = false;
+    // Optional activity checks, enabled only by this seed's slot data.
+    let activityChecks = false;
+    let mealsCooked = 0;
+    // Optional companion upgrades: join checks plus owned upgrades by actor ID.
+    let companionChecks = false;
+    let ownedUpgrades = new Set();
     let pendingDayRollover = false;
     let dayHold = false;
     let powerState = newPowerState();
@@ -8676,6 +8727,10 @@
         serverReleasePermission = null;
         serverMissingChecks = null;
         elevatorFreakDefeated = false;
+        activityChecks = false;
+        mealsCooked = 0;
+        companionChecks = false;
+        ownedUpgrades = new Set();
         pendingDayRollover = false;
         dayHold = false;
         powerState = newPowerState();
@@ -8703,7 +8758,7 @@
     function rejectSave(saved, reason) {
         active = false;
         itemDefinitions = null;
-        saveError = `${reason}. Load this save with its original matching mod/game version, or start a new Normal game. The save file has not been changed.`;
+        saveError = `${reason}. Load this save with its original matching mod/game version, or start a new Survivor Mode game. The save file has not been changed.`;
         throw new Error(saveError);
     }
 
@@ -8718,9 +8773,18 @@
         if (!compatibleStamp(saved.compatibility)) rejectSave(saved, "Archipelago save registry or audited build differs from this mod");
         if (globalThis.$dataSystem?.advanced?.gameId !== auditedBuild.gameId ||
             globalThis.$dataSystem?.versionId !== auditedBuild.versionId) rejectSave(saved, "Installed game build differs from audited build");
-        if (switches?.value(8) || switches?.value(13)) rejectSave(saved, "This Archipelago version requires Normal difficulty");
+        if (switches?.value(8) || switches?.value(13)) rejectSave(saved, difficultyError);
+        // Older saves of this schema predate activity checks; absent means off.
+        const savedActivities = saved.activityChecks ?? false;
+        const savedMeals = saved.mealsCooked ?? 0;
+        const savedCompanions = saved.companionChecks ?? false;
+        const savedUpgrades = saved.ownedUpgrades ?? [];
+        const validUpgrades = Array.isArray(savedUpgrades) && new Set(savedUpgrades).size === savedUpgrades.length &&
+            savedUpgrades.every(id => companionUpgrades.some(entry => entry.actorId === id));
         const validKeys = Array.isArray(saved.checkedKeys) &&
-            saved.checkedKeys.every(key => Object.hasOwn(developmentLocationIds, key)) &&
+            saved.checkedKeys.every(key => Object.hasOwn(developmentLocationIds, key) ||
+                (savedActivities === true && activityLocations.some(entry => entry.key === key)) ||
+                (savedCompanions === true && companionUpgrades.some(entry => entry.key === key))) &&
             new Set(saved.checkedKeys).size === saved.checkedKeys.length;
         const validIdentity = saved.identity === null ||
             (saved.identity && typeof saved.identity.seedName === "string" && saved.identity.seedName &&
@@ -8741,6 +8805,8 @@
         if (!validKeys || !validIdentity || !validItems ||
             typeof saved.goalCompleted !== "boolean" ||
             typeof saved.elevatorFreakDefeated !== "boolean" ||
+            typeof savedActivities !== "boolean" || !Number.isSafeInteger(savedMeals) || savedMeals < 0 ||
+            typeof savedCompanions !== "boolean" || !validUpgrades ||
             typeof saved.pendingDayRollover !== "boolean" || typeof saved.dayHold !== "boolean" ||
             (saved.pendingDayRollover && saved.dayHold) || !validPower) {
             rejectSave(saved, "Unsupported Archipelago save state or unknown queued item");
@@ -8753,6 +8819,10 @@
         itemDefinitions = developmentItemDefinitions;
         goalCompleted = saved.goalCompleted;
         elevatorFreakDefeated = saved.elevatorFreakDefeated;
+        activityChecks = savedActivities;
+        mealsCooked = savedMeals;
+        companionChecks = savedCompanions;
+        ownedUpgrades = new Set(savedUpgrades);
         pendingDayRollover = saved.pendingDayRollover;
         dayHold = saved.dayHold;
         powerState = { ...saved.powerState, notices: saved.powerState.notices.slice() };
@@ -8768,6 +8838,10 @@
             pendingItems: pendingItems.map(entry => ({ index: entry.index, item: entry.item })),
             goalCompleted,
             elevatorFreakDefeated,
+            activityChecks,
+            mealsCooked,
+            companionChecks,
+            ownedUpgrades: [...ownedUpgrades].sort((a, b) => a - b),
             pendingDayRollover,
             dayHold,
             powerState: { ...powerState, notices: powerState.notices.slice() },
@@ -8900,7 +8974,11 @@
             `Archipelago: ${connectionState}`,
             `Server: ${connection?.url || lastServerUrl}`,
             bound,
-            `Checks: ${checkedKeys.size} / ${Object.keys(developmentLocationIds).length}; pending items: ${pendingItems.length}`,
+            `Checks: ${checkedKeys.size} / ${Object.keys(developmentLocationIds).length +
+                (activityChecks ? activityLocations.length : 0) +
+                (companionChecks ? companionUpgrades.length : 0)}; pending items: ${pendingItems.length}`,
+            ownedUpgrades.size ? `Companion upgrades: ${companionUpgrades
+                .filter(entry => ownedUpgrades.has(entry.actorId)).map(entry => entry.name).join(", ")}` : "",
             dayHold ? `Day ${globalThis.$gameVariables?.value(15)} is held` : "Day is not held",
             dayHold && globalThis.$gameVariables?.value(15) >= 15
                 ? "Day 15 is final. Finish an ending to release unfinished checks." : "",
@@ -8936,23 +9014,88 @@
         }));
     }
 
+    // Native quest cutoffs audited in docs/calendar_deadlines.md. Each closes at
+    // the start of `day`; `warnFrom` adds earlier Next Day warnings for quests
+    // that need several days or many in-game hours. Reads native state only.
+    function questDeadlines() {
+        if (!active) return [];
+        const day = globalThis.$gameVariables?.value(15) || 0;
+        const variable = id => globalThis.$gameVariables?.value(id) || 0;
+        const switchOn = id => !!globalThis.$gameSwitches?.value(id);
+        const unchecked = keys => keys.filter(key => !checkedKeys.has(key)).length;
+        // null when the inventory cannot be read; never claim an item is missing then.
+        const holds = id => {
+            const data = globalThis.$dataItems?.[id];
+            const count = data && globalThis.$gameParty?.numItems?.(data);
+            return typeof count === "number" ? count > 0 : null;
+        };
+        const warnings = [];
+        const charanKeys = ["map339_event012", "map401_event007_quest_item"];
+        if (!switchOn(680) && unchecked(charanKeys)) {
+            warnings.push({ group: "Charan's Rose", day: 6, warnFrom: 4, checks: unchecked(charanKeys),
+                atRisk: day >= 6 || switchOn(1097),
+                text: "Give Charan the Rose in the basement pit by the end of Day 5. His cave opens " +
+                    "the next day; the earthquake closes the basement on Day 7." +
+                    (holds(360) === false ? "\nYou do not have the Rose yet." : "") });
+        } else if (switchOn(680) && unchecked(["map401_event007_quest_item"])) {
+            warnings.push({ group: "Charan's Cave", day: 7, warnFrom: 0, checks: 1,
+                atRisk: day >= 7 || switchOn(1097),
+                text: "Follow Charan into his cave the day after giving him the Rose. " +
+                    "The earthquake closes the basement on Day 7." });
+        }
+        const leighStage = variable(900);
+        if (unchecked(["leighs_call_ring"]) && leighStage === 0) {
+            warnings.push({ group: "Leigh's Phone", day: 11, warnFrom: 8, checks: 1,
+                atRisk: day >= 11,
+                text: "Come home carrying the Phone by Day 10 so it can charge. The quest then " +
+                    "needs four more new days and ends on Day 15." +
+                    (holds(389) === false ? "\nYou do not have the Phone yet." : "") });
+        } else if (unchecked(["leighs_call_ring"]) && leighStage >= 1 && leighStage < 10) {
+            // CE6 advances odd stages 1/3/5/7 once per new day; reading the phone
+            // at home makes even stages odd again. Stage 9 is ready to talk.
+            const daysNeeded = Math.max(0, 4 - Math.floor(leighStage / 2));
+            const steps = [];
+            if (leighStage % 2 === 0 && leighStage < 10) steps.push("A new message is waiting on the phone at home.");
+            if (leighStage <= 7 && !switchOn(34)) steps.push("The fourth message only arrives once Leigh lives with you.");
+            steps.push(daysNeeded
+                ? `${daysNeeded} more new day${daysNeeded === 1 ? "" : "s"} needed; talk to Leigh at home before Day 15.`
+                : "Talk to Leigh at home about her phone before Day 15.");
+            warnings.push({ group: "Leigh's Phone", day: 15, warnFrom: Math.max(0, 14 - daysNeeded), checks: 1,
+                atRisk: day + daysNeeded > 14, text: steps.join("\n") });
+        }
+        const wilhelminaKeys = ["wilhelmina_reward_sword", "wilhelmina_reward_spear",
+            "wilhelmina_reward_hammer", "wilhelmina_reward_gun", "wilhelmina_reward_book"];
+        const puzzles = variable(491);
+        if (unchecked(wilhelminaKeys) === wilhelminaKeys.length && puzzles < 100) {
+            warnings.push({ group: "Crossword book", day: 15, warnFrom: 11, checks: wilhelminaKeys.length,
+                atRisk: day >= 15,
+                text: `Finish all 100 crosswords at home before Day 15 (${puzzles} / 100 done). ` +
+                    "It takes many in-game hours; the code in the book leads to Wilhelmina." +
+                    (switchOn(237) ? "" : "\nYou have not picked up the crossword book yet.") });
+        }
+        return warnings;
+    }
+
     function deadlineSummary(advance) {
         const remaining = remainingDeadlines();
-        if (!remaining.length) return "";
         const day = globalThis.$gameVariables?.value(15) || 0;
         const relevant = advance ? remaining.filter(entry => entry.day <= day + 1) : remaining;
-        if (!relevant.length) return "";
         const groups = new Map();
         for (const entry of relevant) {
             if (!groups.has(entry.group)) groups.set(entry.group, []);
             groups.get(entry.group).push(entry);
         }
-        return Array.from(groups, ([name, entries]) => {
+        const pickups = Array.from(groups, ([name, entries]) => {
             const first = entries[0];
             const warning = first.atRisk ? "Access may already be lost. " : "";
             return `${name}: ${entries.length} unchecked\n${warning}${first.description}\n` +
                 entries.map(entry => `• ${entry.name}`).join("\n");
-        }).join("\n\n");
+        });
+        const quests = questDeadlines()
+            .filter(entry => !advance || entry.day <= day + 1 || day >= entry.warnFrom)
+            .map(entry => `${entry.group}: ${entry.checks} unchecked, closes on Day ${entry.day}\n` +
+                `${entry.atRisk ? "This may no longer be possible. " : ""}${entry.text}`);
+        return [...pickups, ...quests].join("\n\n");
     }
 
     function recordDeliveryNotice(definition, fallbackName) {
@@ -9170,12 +9313,16 @@
         if (goalReporter) goalReporter();
     }
 
+    // The game calls Normal difficulty "Survivor Mode"; Explorer sets switch 13, Cursed switch 8.
+    const difficultyError = "This Archipelago version requires Survivor Mode (Normal difficulty); " +
+        "Explorer Mode and Cursed Mode are not supported";
+
     function isNormalMode() {
         return !globalThis.$gameSwitches?.value(8) && !globalThis.$gameSwitches?.value(13);
     }
 
     function requireNormalMode() {
-        if (!isNormalMode()) throw new Error("This Archipelago version requires Normal difficulty");
+        if (!isNormalMode()) throw new Error(difficultyError);
     }
 
     function bindIdentity(seedName, team, slot) {
@@ -9203,7 +9350,7 @@
 
     function requireFirstBindingEligibility() {
         if (!identity && !firstBindingEligible) {
-            throw new Error("This save is not eligible for a first Archipelago connection. Start a new Normal game with this mod and connect before collecting randomized rewards, resolving their quests, or advancing a day.");
+            throw new Error("This save is not eligible for a first Archipelago connection. Start a new Survivor Mode game with this mod and connect before collecting randomized rewards, resolving their quests, or advancing a day.");
         }
     }
 
@@ -9223,11 +9370,54 @@
         return true;
     }
 
+    // Supply Cache rolls depend only on the seed and the item's receive index,
+    // so replaying a packet or reloading before a save gives the same items.
+    function rollSupplyCache(index) {
+        let state = 2166136261;
+        for (const char of `${identity?.seedName || ""}:${index}`) {
+            state = Math.imul(state ^ char.charCodeAt(0), 16777619) >>> 0;
+        }
+        const next = () => {
+            state = (state + 0x6D2B79F5) >>> 0;
+            let value = Math.imul(state ^ (state >>> 15), state | 1);
+            value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+            return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+        };
+        const total = supplyCache.table.reduce((sum, [, weight]) => sum + weight, 0);
+        return Array.from({ length: supplyCache.rolls }, () => {
+            let roll = next() * total;
+            return supplyCache.table.find(([, weight]) => (roll -= weight) < 0)[0];
+        });
+    }
+
     function deliverPendingItems() {
         if (saveError || !itemDefinitions || !globalThis.$gameParty) return;
         for (const entry of [...pendingItems]) {
             const definition = itemDefinitions[entry.item.item];
             if (!definition) continue;
+            if (definition.kind === "cache") {
+                if (!globalThis.$dataItems) continue;
+                const names = [];
+                for (const id of rollSupplyCache(entry.index)) {
+                    const gameItem = $dataItems[id];
+                    // A full stack skips that roll instead of blocking the queue.
+                    if (!gameItem || $gameParty.numItems(gameItem) >= $gameParty.maxItems(gameItem)) continue;
+                    $gameParty.gainItem(gameItem, 1, false);
+                    names.push(gameItem.name);
+                }
+                pendingItems.splice(pendingItems.indexOf(entry), 1);
+                recordDeliveryNotice({ ...definition, name: `${definition.name}: ${names.join(", ") || "nothing (bag full)"}` });
+                continue;
+            }
+            if (definition.kind === "upgrade") {
+                // Ownership only: effects are derived from it, so a replayed
+                // packet or reload can never stack an upgrade twice.
+                ownedUpgrades.add(definition.id);
+                pendingItems.splice(pendingItems.indexOf(entry), 1);
+                recordDeliveryNotice(definition);
+                globalThis.$gamePlayer?.refresh?.();
+                continue;
+            }
             if (definition.kind === "switch") {
                 if (!globalThis.$gameSwitches) continue;
                 try {
@@ -9276,10 +9466,11 @@
     function validateItemDefinitions(definitions) {
         if (!definitions || typeof definitions !== "object" ||
             Object.values(definitions).some(definition =>
-                !definition || !["item", "weapon", "armor", "switch"].includes(definition.kind) ||
+                !definition || !["item", "weapon", "armor", "switch", "upgrade", "cache"].includes(definition.kind) ||
+                (definition.kind === "upgrade" && !companionUpgrades.some(entry => entry.actorId === definition.id)) ||
                 !Number.isSafeInteger(definition.id) || definition.id < 1 ||
                 (definition.amount !== undefined &&
-                    (definition.kind === "switch" || !Number.isSafeInteger(definition.amount) ||
+                    (["switch", "upgrade", "cache"].includes(definition.kind) || !Number.isSafeInteger(definition.amount) ||
                      definition.amount < 1)))) {
             throw new Error("Invalid development item definitions");
         }
@@ -9310,11 +9501,15 @@
             throw new Error("Enter a WebSocket server address; use the password field for the server password");
         }
         const locationIds = options.locationIds || developmentLocationIds;
+        // Optional-feature IDs; slot data decides whether this seed uses them.
+        const featureIds = Object.fromEntries([...activityLocations, ...companionUpgrades]
+            .map(entry => [entry.key, entry.apId]));
+        const locationId = key => locationIds[key] ?? featureIds[key];
         const definitions = options.itemDefinitions || developmentItemDefinitions;
         validateItemDefinitions(definitions);
         if (!sourceSignatures.every(source => Number.isSafeInteger(locationIds[source.key]) &&
             locationIds[source.key] > 0) ||
-            [...checkedKeys].some(key => !Number.isSafeInteger(locationIds[key]))) {
+            [...checkedKeys].some(key => !Number.isSafeInteger(locationId(key)))) {
             throw new Error("Every development source needs an AP location ID");
         }
         const keyByLocationId = new Map(
@@ -9358,7 +9553,7 @@
         }
         function sendChecks(keys) {
             if (connectionState !== "connected" || !keys.length) return;
-            const ids = keys.map(key => locationIds[key]);
+            const ids = keys.map(locationId);
             if (ids.some(id => !Number.isSafeInteger(id))) {
                 fail("Saved check has no AP location ID");
                 return;
@@ -9432,11 +9627,27 @@
                             packet.slot_data?.audited_version_id !== auditedBuild.versionId) {
                             throw new Error("Incompatible Look Outside slot data");
                         }
+                        const seedActivities = packet.slot_data.activity_checks === true;
+                        if (seedActivities && packet.slot_data.activity_version !== activityVersion) {
+                            throw new Error("This seed's activity checks differ from this mod version");
+                        }
+                        const seedCompanions = packet.slot_data.companion_upgrades === true;
+                        if (seedCompanions && packet.slot_data.companion_version !== companionVersion) {
+                            throw new Error("This seed's companion upgrades differ from this mod version");
+                        }
                         if (!Array.isArray(packet.checked_locations || []) ||
                             !(packet.checked_locations || []).every(Number.isSafeInteger)) {
                             throw new Error("Invalid checked_locations list");
                         }
                         bindIdentity(roomSeedName, packet.team, packet.slot);
+                        activityChecks = seedActivities;
+                        if (activityChecks) {
+                            for (const entry of activityLocations) keyByLocationId.set(entry.apId, entry.key);
+                        }
+                        companionChecks = seedCompanions;
+                        if (companionChecks) {
+                            for (const entry of companionUpgrades) keyByLocationId.set(entry.apId, entry.key);
+                        }
                         acceptServerChecks(packet.checked_locations || []);
                         connectionState = "connected";
                         connectionError = null;
@@ -9454,6 +9665,7 @@
                             send(packets);
                         };
                         sendChecks([...checkedKeys]);
+                        recordPresentCompanions();
                         if (goalCompleted) goalReporter();
                     } else if (packet.cmd === "RoomUpdate") {
                         if (packet.permissions?.release !== undefined) {
@@ -9694,6 +9906,134 @@
         }
         return result;
     };
+    function isCommonEventCommand(context, commonEventId, index, code, params) {
+        const command = context._list?.[context._index];
+        return context._list === globalThis.$dataCommonEvents?.[commonEventId]?.list &&
+            context._index === index && command?.code === code &&
+            JSON.stringify(command.parameters) === JSON.stringify(params);
+    }
+
+    function activitiesEnabled() {
+        return active && identity && activityChecks &&
+            globalThis.$dataSystem?.advanced?.gameId === auditedBuild.gameId &&
+            globalThis.$dataSystem?.versionId === auditedBuild.versionId;
+    }
+
+    // Activity checks add an AP location and keep the native food or item.
+    // CE44 c329 sets cookedMeal59 once a meal is on the table.
+    const cookedMealSwitch = [59, 59, 0];
+    const activityCommand121 = interpreter.command121;
+    interpreter.command121 = function(params) {
+        const cooked = activitiesEnabled() && JSON.stringify(params) === JSON.stringify(cookedMealSwitch) &&
+            isCommonEventCommand(this, 44, 329, 121, cookedMealSwitch);
+        const result = activityCommand121.call(this, params);
+        if (result && cooked) {
+            mealsCooked++;
+            for (const entry of activityLocations) {
+                if (entry.meals && mealsCooked >= entry.meals) recordCheck(entry);
+            }
+        }
+        return result;
+    };
+    // CE45 c126 consumes both inputs and grants the crafted result.
+    const craftedScript = ["$gameParty.gainItem($dataItems[gVr(72)], -1);"];
+    const originalCommand355 = interpreter.command355;
+    if (originalCommand355) {
+        interpreter.command355 = function(params) {
+            const crafted = activitiesEnabled() && isCommonEventCommand(this, 45, 126, 355, craftedScript);
+            const result = originalCommand355.call(this, params);
+            if (result && crafted) {
+                for (const entry of activityLocations) {
+                    if (entry.crafts) recordCheck(entry);
+                }
+            }
+            return result;
+        };
+    }
+    // Companion upgrades: native recruitment stays unchanged. A first join is
+    // a check; each owned upgrade is a passive (extra traits, a battle-start
+    // effect, or Dan's viewer bonus) derived from ownership, so it never stacks.
+    function companionsEnabled() {
+        return active && identity &&
+            globalThis.$dataSystem?.advanced?.gameId === auditedBuild.gameId &&
+            globalThis.$dataSystem?.versionId === auditedBuild.versionId;
+    }
+
+    function recordPresentCompanions() {
+        if (!companionChecks || !companionsEnabled()) return;
+        const members = globalThis.$gameParty?._actors || [];
+        for (const entry of companionUpgrades) {
+            if (members.includes(entry.actorId)) recordCheck(entry, false);
+        }
+    }
+
+    const upgradeTraits = new Map(companionUpgrades.filter(entry => entry.effect.traits).map(entry =>
+        [entry.actorId, Object.freeze({ traits: entry.effect.traits.map(([code, dataId, value]) =>
+            Object.freeze({ code, dataId, value })) })]));
+
+    function ownedUpgrade(actor) {
+        if (!ownedUpgrades.size || !companionsEnabled()) return null;
+        const actorId = actor?.actorId?.();
+        return ownedUpgrades.has(actorId) ? companionUpgrades.find(entry => entry.actorId === actorId) : null;
+    }
+
+    const gameParty = globalThis.Game_Party?.prototype;
+    if (gameParty?.addActor) {
+        const originalAddActor = gameParty.addActor;
+        gameParty.addActor = function(actorId) {
+            const result = originalAddActor.apply(this, arguments);
+            if (companionChecks && companionsEnabled() && this._actors?.includes(actorId)) {
+                const entry = companionUpgrades.find(row => row.actorId === actorId);
+                if (entry) recordCheck(entry);
+            }
+            return result;
+        };
+    }
+    const gameActor = globalThis.Game_Actor?.prototype;
+    if (gameActor?.traitObjects) {
+        const originalTraitObjects = gameActor.traitObjects;
+        gameActor.traitObjects = function() {
+            const objects = originalTraitObjects.apply(this, arguments);
+            const upgrade = ownedUpgrade(this);
+            const traits = upgrade && upgradeTraits.get(upgrade.actorId);
+            if (traits) objects.push(traits);
+            return objects;
+        };
+    }
+    if (gameActor?.onBattleStart) {
+        const originalOnBattleStart = gameActor.onBattleStart;
+        gameActor.onBattleStart = function() {
+            const result = originalOnBattleStart.apply(this, arguments);
+            const effect = ownedUpgrade(this)?.effect;
+            if (effect?.battle_state) this.addState(effect.battle_state);
+            if (effect?.party_battle_state) {
+                for (const member of globalThis.$gameParty?.battleMembers?.() || [this]) {
+                    if (member.isAlive?.() !== false) member.addState(effect.party_battle_state);
+                }
+            }
+            if (effect?.level_floor_below_leader) {
+                // Bounded catch-up relative to Sam, never past the actor's cap.
+                const leaderLevel = globalThis.$gameActors?.actor(1)?.level ?? 0;
+                const floor = Math.min(this.maxLevel(), leaderLevel - effect.level_floor_below_leader);
+                if (this.level < floor) this.changeLevel(floor, false);
+            }
+            return result;
+        };
+    }
+    if (gameActor) {
+        // Sophie: Hidden (146) is her trick prerequisite; Attracted Attention
+        // (147) is the exposure her tricks cause. Only re-hide between the two.
+        const originalOnTurnEnd = gameActor.onTurnEnd;
+        gameActor.onTurnEnd = function() {
+            const result = originalOnTurnEnd?.apply(this, arguments);
+            const chance = ownedUpgrade(this)?.effect.rehide_chance;
+            if (chance && globalThis.$gameParty?.inBattle?.() && this.isAlive() &&
+                !this.isStateAffected(146) && !this.isStateAffected(147) && Math.random() < chance) {
+                this.addState(146);
+            }
+            return result;
+        };
+    }
     const originalCommand250 = interpreter.command250;
     if (originalCommand250) {
         interpreter.command250 = function(params) {
@@ -9841,10 +10181,14 @@
             return true;
         }
         const terminal = matchingQuestTerminal(this, 122, params);
+        const danIntro = [[3, [568, 568, 0, 1, 812]], [9, [568, 568, 0, 1, 813]]].some(([index, expected]) =>
+            JSON.stringify(params) === JSON.stringify(expected) && isCommonEventCommand(this, 211, index, 122, expected));
         const outageFinished = JSON.stringify(params) === JSON.stringify([940, 940, 0, 0, 0]) &&
             isOutageCommand(this, 34, 122, [940, 940, 0, 0, 0]);
         const result = originalCommand122.call(this, params);
         if (result) reconcileQuestTerminal(terminal);
+        const fans = danIntro && ownedUpgrade(globalThis.$gameActors?.actor(6))?.effect.intro_viewers;
+        if (result && fans) $gameVariables.setValue(568, $gameVariables.value(568) + fans);
         if (result && outageFinished) finishPowerOutage();
         return result;
     };
@@ -10247,9 +10591,19 @@
         get goalCompleted() { return goalCompleted; },
         goalReleaseSummary() { return goalReleaseSummary(); },
         get elevatorFreakDefeated() { return elevatorFreakDefeated; },
+        companionState() {
+            return { enabled: companionChecks, owned: [...ownedUpgrades].sort((x, y) => x - y),
+                companions: companionUpgrades.map(entry => ({ ...entry, effect: { ...entry.effect } })) };
+        },
+        activityState() {
+            return { enabled: activityChecks, mealsCooked,
+                locations: activityLocations.map(entry => ({ ...entry })) };
+        },
         get pendingDayRollover() { return pendingDayRollover; },
         get dayHold() { return dayHold; },
         remainingDeadlines() { return remainingDeadlines(); },
+        questDeadlines() { return questDeadlines(); },
+        deadlineSummary(advance = false) { return deadlineSummary(advance); },
         powerState() { return { ...powerState, notices: powerState.notices.slice() }; },
         updatePowerForDevelopment() {
             if (globalThis.process?.env?.LOA_DEV_MODE !== "1") throw new Error("Development power update requires LOA_DEV_MODE=1");

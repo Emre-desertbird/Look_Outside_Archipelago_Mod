@@ -1,6 +1,6 @@
 # Look Outside (development playtest)
 
-This APWorld supports Normal difficulty. Hard and Easy sessions are rejected.
+This APWorld supports Survivor Mode (Normal difficulty). Explorer Mode and Cursed Mode sessions are rejected.
 
 <!-- BEGIN GENERATED REGISTRY SUMMARY -->
 Registry **74** provides **273 checks**: 167 equipment copies, 103 physical items and 3 access unlocks.
@@ -20,6 +20,19 @@ the reviewed companion rewards, Morton donations and the Gauntlet stay vanilla.
 The approved fixed Simple Key sources provide bundles sufficient for ordinary
 locks. Access logic checks routes and required objects; combat preparation is
 left to the player. Quest choices reconcile their reviewed reward groups.
+
+Optional `activity_checks` (off by default) adds three filler-only checks:
+cooking your first and third meal, and crafting your first item. You keep the
+food and crafted item. Each adds one Supply Cache (three random consumables) to
+the pool.
+
+Optional `companion_upgrades` (off by default) adds 17 useful upgrade items, one
+per recruitable companion, and a filler-only check when each first joins. Each
+upgrade is a passive fitting that companion: for example, Sophie starts every
+battle Hidden and can slip back into hiding, Rat Child starts battles copying
+Sam and catches up in level, Ernest opens battles
+with Song of Speed, and Phillippe's attacks spread the spores Assume Control
+needs. Upgrades received before recruitment apply once that companion joins.
 
 Power Restored waits for the native outage if received early, then restores
 electricity with a notice. The fuse-box check remains available independently.

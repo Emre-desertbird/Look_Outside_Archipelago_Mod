@@ -1,6 +1,6 @@
 # Look Outside Archipelago — development playtest
 
-Normal difficulty, game build `74642914`, Archipelago 0.6.7 or newer.
+Survivor Mode (Normal difficulty), game build `74642914`, Archipelago 0.6.7 or newer.
 The package manifest identifies the matching plugin and APWorld registry.
 Start a fresh seed and save when the registry changes. This is a development
 build; a complete interactive playthrough, including calendar ordering, remains.
@@ -67,7 +67,7 @@ $env:LOA_DEV_MODE = '1'
 .\Game.exe --user-data-dir="$PWD\ap-profile"
 ```
 
-Choose a new **Normal** game. Open **Archipelago Connect** from the in-game
+Choose a new **Survivor Mode** game. Open **Archipelago Connect** from the in-game
 menu and enter the server, slot name, and password if needed. Connect before
 collecting any randomized pickup. Use `wss://host:port` for hosted rooms requiring
 encryption; plain/local rooms accept `ws://host:port`. This package also retries

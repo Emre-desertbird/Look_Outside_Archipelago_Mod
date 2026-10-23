@@ -20,10 +20,19 @@ from audit_access import PROJECT, load_access
 
 def verify(path):
     registry = json.loads((PROJECT / "apworld/lookoutside/vertical_slice.json").read_text(encoding="utf-8"))
+    activities = json.loads((PROJECT / "apworld/lookoutside/activities.json").read_text(encoding="utf-8"))
+    companions = json.loads((PROJECT / "apworld/lookoutside/companions.json").read_text(encoding="utf-8"))
+    supply_cache = json.loads((PROJECT / "apworld/lookoutside/supplies.json").read_text(encoding="utf-8"))["item"]
+    # Companion joins behave like free, excluded activity checks at home.
+    companion_items = [{**row["item"], "quantity": 1} for row in companions["companions"]]
+    companion_rows = {row["location"]["name"]: {**row["location"], "region": "Apartment 33", "missable": True}
+                      for row in companions["companions"]}
     graph = load_access()
     graph.validate(registry)
-    definitions = {row["name"]: row for row in registry["items"]}
-    locations = {row["name"]: row for row in registry["locations"]}
+    definitions = {row["name"]: row for row in registry["items"] + companion_items + [supply_cache]}
+    # Optional activity checks are excluded (filler only) and gated by regions alone.
+    activity_rows = {row["name"]: {**row, "missable": True} for row in activities["locations"]}
+    locations = {row["name"]: row for row in registry["locations"]} | activity_rows | companion_rows
     with ZipFile(path) as archive:
         spoiler = next(name for name in archive.namelist() if name.endswith("_Spoiler.txt"))
         lines = archive.read(spoiler).decode("utf-8-sig").splitlines()
@@ -62,16 +71,38 @@ def verify(path):
                     raise ValueError(f"Non-filler item on excluded location: {line}")
                 placements[source] = reward
                 break
-    total = len(locations) * len(players)
+    activity_keys = {row["key"]: row for row in activity_rows.values()}
+    companion_keys = {row["key"]: row for row in companion_rows.values()}
+    enabled = {owner for owner, key in placements if key in activity_keys}
+    companion_players = {owner for owner, key in placements if key in companion_keys}
+    for player in enabled:
+        if sum(owner == player and key in activity_keys for owner, key in placements) != len(activity_keys):
+            raise ValueError(f"Partial activity checks for {player}")
+    for player in companion_players:
+        if sum(owner == player and key in companion_keys for owner, key in placements) != len(companion_keys):
+            raise ValueError(f"Partial companion checks for {player}")
+    total = (len(registry["locations"]) * len(players) + len(activity_keys) * len(enabled) +
+             len(companion_keys) * len(companion_players))
     if len(placements) != total:
         raise ValueError(f"Expected {total} placements, got {len(placements)}")
     expected = Counter({(player, row["name"]): row["quantity"]
                         for player in players for row in registry["items"]})
+    expected.update({(player, row["name"]): row["quantity"]
+                     for player in enabled for row in activities["items"]})
+    expected.update({(player, row["name"]): 1 for player in companion_players for row in companion_items})
     if Counter(placements.values()) != expected:
         raise ValueError("Generated item quantities differ from the registry")
     inventory, checked, spheres = {player: Counter() for player in players}, set(), []
     while len(checked) < total:
-        reachable = {(player, key) for player in players for key in graph.reachable(inventory[player])[1]}
+        reachable = set()
+        for player in players:
+            regions, checks = graph.reachable(inventory[player])
+            reachable |= {(player, key) for key in checks}
+            if player in enabled:
+                reachable |= {(player, key) for key, row in activity_keys.items()
+                              if row["region"] in regions and row.get("requires_region", row["region"]) in regions}
+            if player in companion_players:
+                reachable |= {(player, key) for key in companion_keys if "Apartment 33" in regions}
         sphere = sorted(reachable - checked)
         if not sphere:
             missing = sorted(placements.keys() - checked)
@@ -87,7 +118,10 @@ def verify(path):
             raise ValueError(f"Seed fails calendar reservations for {player}")
     return {"archive": str(path), "players": len(players), "checked": len(checked), "sphere_sizes": spheres,
             "generation_events_per_player": len(graph.events),
-            "excluded_locations": len(players) * sum(bool(row.get("missable")) for row in locations.values()),
+            "excluded_locations": len(players) * sum(bool(row.get("missable")) for row in registry["locations"]) +
+                                  len(enabled) * len(activity_keys) + len(companion_players) * len(companion_keys),
+            "activity_players": len(enabled),
+            "companion_players": len(companion_players),
             "cross_player_items": sum(owner != recipient for (owner, _), (recipient, _) in placements.items()),
             "goal_release_used": False}
 

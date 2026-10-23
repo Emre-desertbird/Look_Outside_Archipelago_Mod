@@ -37,6 +37,7 @@ class FakeInterpreter {
         return true;
     }
     command117(params) { commonEventCalls.push(params[0]); return true; }
+    command355() { return true; }
     command101() {
         while (this._list[this._index + 1]?.code === 401) {
             this._index++;
@@ -114,6 +115,25 @@ globalThis.DataManager = {
     extractSaveContents(contents) { nativeLoads++; assert.equal(contents.system, "vanilla-system"); },
 };
 const battleHarness = require("./battle_drop_harness")();
+// Minimal party/actor fakes for companion upgrade hooks.
+class FakeGameParty {
+    constructor() { this._actors = []; }
+    addActor(actorId) { if (!this._actors.includes(actorId)) this._actors.push(actorId); }
+}
+class FakeGameActor {
+    constructor(actorId, level = 1) { this._actorId = actorId; this.level = level; this.states = []; }
+    actorId() { return this._actorId; }
+    traitObjects() { return [{ traits: [{ code: 14, dataId: 119, value: 1 }] }]; }
+    onBattleStart() { this.started = (this.started || 0) + 1; }
+    addState(id) { if (!this.states.includes(id)) this.states.push(id); }
+    removeState(id) { this.states = this.states.filter(state => state !== id); }
+    isStateAffected(id) { return this.states.includes(id); }
+    isAlive() { return true; }
+    maxLevel() { return 20; }
+    changeLevel(level) { this.level = level; }
+}
+globalThis.Game_Party = FakeGameParty;
+globalThis.Game_Actor = FakeGameActor;
 require("../game_plugin/LookOutsideArchipelago.js");
 const plugin = globalThis.LookOutsideArchipelago;
 const sliceSlotData = {
@@ -126,6 +146,8 @@ const sliceSlotData = {
 
 test("development protocol IDs agree with the shared vertical-slice registry", () => {
     const registry = require("../apworld/lookoutside/vertical_slice.json");
+    const activities = require("../apworld/lookoutside/activities.json");
+    const companions = require("../apworld/lookoutside/companions.json");
     const data = plugin.developmentData();
     assert.deepEqual(data.sources, registry.locations.flatMap(location =>
         [location, ...(location.source_variants || [])].map(source => ({
@@ -149,7 +171,13 @@ test("development protocol IDs agree with the shared vertical-slice registry", (
             name: item.name,
             ...(item.delivery_amount ? { amount: item.delivery_amount } : {}),
             ...(item.delivery_switches ? { deliverySwitches: item.delivery_switches } : {}),
-        }])));
+        }]).concat(companions.companions.map(row => [row.item.ap_id,
+            { kind: "upgrade", id: row.actor_id, name: row.item.name }]))
+            .concat([[540500001, { kind: "cache", id: 1, name: "Supply Cache" }]])));
+    assert.deepEqual(plugin.companionState().companions.map(entry => [entry.key, entry.apId, entry.actorId]),
+        companions.companions.map(row => [row.location.key, row.location.ap_id, row.actor_id]));
+    assert.deepEqual(plugin.activityState().locations.map(entry => [entry.key, entry.apId]),
+        activities.locations.map(location => [location.key, location.ap_id]));
 });
 
 test("inactive plugin leaves vanilla grants alone", () => {
@@ -302,6 +330,10 @@ test("checks survive save/load and are not reported twice", () => {
         pendingItems: [],
         goalCompleted: false,
         elevatorFreakDefeated: false,
+        activityChecks: false,
+        mealsCooked: 0,
+        companionChecks: false,
+        ownedUpgrades: [],
         pendingDayRollover: false,
         dayHold: false,
         powerState: { received: false, outageSeen: false, outageInProgress: false,
@@ -1744,4 +1776,397 @@ test("deadline warnings distinguish expiring pickups from recoverable quests and
     assert.deepEqual(plugin.remainingDeadlines(), []);
     DataManager.setupNewGame();
     currentDay = 1;
+});
+
+test("quest deadline warnings follow Charan, Leigh and crossword native state", () => {
+    const oldParty = globalThis.$gameParty;
+    const oldItems = globalThis.$dataItems;
+    const held = new Set();
+    globalThis.$dataItems = { 360: { id: 360 }, 389: { id: 389 } };
+    globalThis.$gameParty = { numItems(item) { return held.has(item.id) ? 1 : 0; } };
+    const quest = group => plugin.questDeadlines().find(entry => entry.group === group);
+    try {
+        DataManager.setupNewGame();
+        for (const id of [34, 237, 680, 1097]) switchValues.delete(id);
+        for (const id of [491, 900]) variableValues.delete(id);
+        currentDay = 2;
+        variableValues.set(16, 8);
+        plugin.bindIdentityForDevelopment("quest-deadlines", 0, 1);
+        plugin.activateForDevelopment();
+        assert.deepEqual(plugin.questDeadlines().map(entry => entry.group),
+            ["Charan's Rose", "Leigh's Phone", "Crossword book"]);
+        assert.match(quest("Charan's Rose").text, /do not have the Rose/);
+        assert.match(quest("Crossword book").text, /not picked up the crossword book/);
+        // Early days list everything in Status but do not nag on Next Day.
+        assert.doesNotMatch(plugin.deadlineSummary(true), /Charan|Leigh|Crossword/);
+        assert.match(plugin.deadlineSummary(false), /Charan's Rose: 2 unchecked, closes on Day 6/);
+
+        held.add(360);
+        currentDay = 5;
+        assert.doesNotMatch(quest("Charan's Rose").text, /do not have/);
+        assert.match(plugin.deadlineSummary(true), /Charan's Rose/);
+        assert.equal(quest("Charan's Rose").atRisk, false);
+        switchValues.set(680, true);
+        assert.equal(quest("Charan's Rose"), undefined);
+        currentDay = 6;
+        assert.equal(quest("Charan's Cave").atRisk, false);
+        assert.match(plugin.deadlineSummary(true), /Charan's Cave/);
+        switchValues.set(1097, true);
+        assert.equal(quest("Charan's Cave").atRisk, true);
+        switchValues.delete(1097);
+
+        currentDay = 10;
+        assert.match(quest("Leigh's Phone").text, /do not have the Phone/);
+        assert.equal(quest("Leigh's Phone").day, 11);
+        variableValues.set(900, 1);
+        assert.match(quest("Leigh's Phone").text, /4 more new days/);
+        assert.match(quest("Leigh's Phone").text, /fourth message only arrives once Leigh lives with you/);
+        assert.equal(quest("Leigh's Phone").atRisk, false);
+        currentDay = 11;
+        assert.equal(quest("Leigh's Phone").atRisk, true, "Four transitions no longer fit before Day 15");
+        variableValues.set(900, 8);
+        switchValues.set(34, true);
+        assert.match(quest("Leigh's Phone").text, /new message is waiting/);
+        assert.doesNotMatch(quest("Leigh's Phone").text, /fourth message/);
+        assert.equal(quest("Leigh's Phone").atRisk, false);
+        variableValues.set(900, 20);
+        assert.equal(quest("Leigh's Phone"), undefined);
+
+        switchValues.set(237, true);
+        variableValues.set(491, 42);
+        currentDay = 12;
+        assert.match(plugin.deadlineSummary(true), /42 \/ 100 done/);
+        assert.doesNotMatch(quest("Crossword book").text, /not picked up/);
+        variableValues.set(491, 100);
+        assert.equal(quest("Crossword book"), undefined);
+
+        plugin.deactivate();
+        assert.deepEqual(plugin.questDeadlines(), []);
+    } finally {
+        globalThis.$gameParty = oldParty;
+        globalThis.$dataItems = oldItems;
+        for (const id of [34, 237, 680, 1097]) switchValues.delete(id);
+        for (const id of [491, 900, 16]) variableValues.delete(id);
+        DataManager.setupNewGame();
+        currentDay = 1;
+    }
+});
+
+test("activity checks follow slot data, keep native rewards and survive offline reloads", () => {
+    class ActivitySocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; ActivitySocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    const oldCommon44 = $dataCommonEvents[44];
+    const oldCommon45 = $dataCommonEvents[45];
+    const cookList = Array.from({ length: 330 }, () => ({ code: 0, parameters: [] }));
+    cookList[329] = { code: 121, parameters: [59, 59, 0] };
+    const craftScript = "$gameParty.gainItem($dataItems[gVr(72)], -1);";
+    const craftList = Array.from({ length: 127 }, () => ({ code: 0, parameters: [] }));
+    craftList[126] = { code: 355, parameters: [craftScript] };
+    $dataCommonEvents[44] = { list: cookList };
+    $dataCommonEvents[45] = { list: craftList };
+    const run = (list, index, code, params) => {
+        const context = new FakeInterpreter(0, 0, 0, index, code, params);
+        context._list = list;
+        return Game_Interpreter.prototype[`command${code}`].call(context, params);
+    };
+    const cook = () => run(cookList, 329, 121, [59, 59, 0]);
+    const craft = () => run(craftList, 126, 355, [craftScript]);
+    const activityKeys = () => plugin.checkedKeys().filter(key => key.startsWith("activity_")).sort();
+    const connect = enabled => {
+        plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Cook", password: "",
+            uuid: "activity-uuid", WebSocketClass: ActivitySocket, autoReconnect: false });
+        const socket = ActivitySocket.instances.at(-1);
+        socket.server({ cmd: "RoomInfo", seed_name: "activity-seed" });
+        socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [],
+            slot_data: { ...sliceSlotData, activity_checks: enabled, activity_version: 1 } });
+        return socket;
+    };
+    try {
+        // Disabled seeds: cooking and crafting stay vanilla and send nothing.
+        DataManager.setupNewGame();
+        let socket = connect(false);
+        assert.equal(cook(), true);
+        assert.equal(craft(), true);
+        assert.equal(switchValues.get(59), true);
+        assert.equal(plugin.activityState().mealsCooked, 0);
+        assert.deepEqual(activityKeys(), []);
+        socket.close();
+
+        DataManager.setupNewGame();
+        socket = connect(true);
+        assert.equal(plugin.activityState().enabled, true);
+        cook();
+        assert.deepEqual(socket.sent.at(-1), { cmd: "LocationChecks", locations: [593000001] });
+        assert.equal(switchValues.get(59), true, "native cookedMeal switch is still set");
+        cook();
+        assert.deepEqual(activityKeys(), ["activity_cook_meal_1"]);
+        socket.close();
+        // Third meal and first craft offline, then save/reload before reconnecting.
+        cook();
+        craft();
+        assert.deepEqual(activityKeys(), ["activity_cook_meal_1", "activity_cook_meal_3", "activity_craft_1"]);
+        const save = DataManager.makeSaveContents();
+        assert.equal(save.lookOutsideArchipelago.mealsCooked, 3);
+        assert.equal(save.lookOutsideArchipelago.activityChecks, true);
+        DataManager.setupNewGame();
+        DataManager.extractSaveContents(save);
+        assert.equal(plugin.activityState().mealsCooked, 3);
+        socket = connect(true);
+        const replay = socket.sent.find(packet => packet.cmd === "LocationChecks");
+        assert.ok([593000001, 593000003, 593000101].every(id => replay.locations.includes(id)));
+        socket.server({ cmd: "RoomUpdate", checked_locations: [593000001, 593000003, 593000101] });
+        craft();
+        assert.equal(socket.sent.filter(packet => packet.cmd === "LocationChecks").length, 1,
+            "a repeated craft does not resend");
+        socket.close();
+
+        // Activity keys without the saved feature flag are rejected.
+        const forged = structuredClone(save);
+        forged.lookOutsideArchipelago.activityChecks = false;
+        assert.throws(() => DataManager.extractSaveContents(forged), /Unsupported Archipelago save state/);
+        // Saves written before this feature (no fields) still load with it off.
+        const legacy = structuredClone(save);
+        delete legacy.lookOutsideArchipelago.activityChecks;
+        delete legacy.lookOutsideArchipelago.mealsCooked;
+        legacy.lookOutsideArchipelago.checkedKeys = legacy.lookOutsideArchipelago.checkedKeys
+            .filter(key => !key.startsWith("activity_"));
+        DataManager.extractSaveContents(legacy);
+        assert.equal(plugin.activityState().enabled, false);
+        assert.equal(plugin.activityState().mealsCooked, 0);
+        // A seed from a newer activity set is refused instead of half-supported.
+        DataManager.setupNewGame();
+        plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Cook", password: "",
+            uuid: "activity-uuid", WebSocketClass: ActivitySocket, autoReconnect: false });
+        socket = ActivitySocket.instances.at(-1);
+        socket.server({ cmd: "RoomInfo", seed_name: "activity-seed-2" });
+        socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [],
+            slot_data: { ...sliceSlotData, activity_checks: true, activity_version: 2 } });
+        assert.equal(plugin.connectionState, "error");
+        assert.match(plugin.connectionError, /activity checks differ/);
+    } finally {
+        $dataCommonEvents[44] = oldCommon44;
+        $dataCommonEvents[45] = oldCommon45;
+        switchValues.delete(59);
+        DataManager.setupNewGame();
+    }
+});
+
+test("companion upgrades check first joins and derive effects from saved ownership", () => {
+    class CompanionSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; CompanionSocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    const oldParty = globalThis.$gameParty;
+    const oldActors = globalThis.$gameActors;
+    const sam = new Game_Actor(1, 9);
+    globalThis.$gameActors = { actor(id) { return id === 1 ? sam : null; } };
+    globalThis.$gameParty = new Game_Party();
+    $gameParty.addActor(1);
+    const connect = (enabled, seed = "companion-seed", version = 1) => {
+        plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Friends", password: "",
+            uuid: "companion-uuid", WebSocketClass: CompanionSocket, autoReconnect: false });
+        const socket = CompanionSocket.instances.at(-1);
+        socket.server({ cmd: "RoomInfo", seed_name: seed });
+        socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [],
+            slot_data: { ...sliceSlotData, companion_upgrades: enabled, companion_version: version } });
+        return socket;
+    };
+    const extraTraits = actor => actor.traitObjects().slice(1).flatMap(object => object.traits)
+        .map(trait => [trait.code, trait.dataId, trait.value]);
+    try {
+        // Disabled seeds: joining sends nothing and the upgrade kind is never received.
+        DataManager.setupNewGame();
+        let socket = connect(false);
+        $gameParty.addActor(12);
+        assert.ok(!plugin.checkedKeys().some(key => key.startsWith("companion_")));
+        socket.close();
+
+        DataManager.setupNewGame();
+        globalThis.$gameParty = new Game_Party();
+        $gameParty.addActor(1);
+        $gameParty.addActor(16); // Morton already present when connecting.
+        socket = connect(true);
+        assert.ok(plugin.checkedKeys().includes("companion_join_16"));
+        assert.ok(socket.sent.some(packet => packet.cmd === "LocationChecks" && packet.locations.includes(594000016)));
+        $gameParty.addActor(12);
+        assert.deepEqual(socket.sent.at(-1), { cmd: "LocationChecks", locations: [594000012] });
+
+        // Upgrades received before recruitment are stored; Leigh has not joined.
+        const upgradeItems = [12, 5, 8, 16, 11, 6].map(actor => ({ item: 540400000 + actor }));
+        socket.server({ cmd: "ReceivedItems", index: 0, items: upgradeItems });
+        plugin.deliverPendingForDevelopment();
+        assert.deepEqual(plugin.companionState().owned, [5, 6, 8, 11, 12, 16]);
+        assert.deepEqual(plugin.pendingItems(), []);
+
+        const sophie = new Game_Actor(12, 3);
+        sophie.onBattleStart();
+        assert.deepEqual(sophie.states, [146], "Sophie starts hidden");
+        assert.equal(sophie.started, 1, "native battle start still runs");
+        const leigh = new Game_Actor(5, 6);
+        assert.deepEqual(extraTraits(leigh), [[32, 15, 0.12]], "attacks may stun");
+        assert.equal(leigh.traitObjects().length, 2, "native traits are kept");
+        assert.deepEqual(extraTraits(new Game_Actor(16, 6)), [[64, 5, 1]], "Morton doubles drops");
+        // Ernest gives the whole battle party Song of Speed.
+        const ernest = new Game_Actor(11, 4);
+        const ally = new Game_Actor(3, 6);
+        const oldMembers = $gameParty.battleMembers;
+        $gameParty.battleMembers = () => [sam, ernest, ally];
+        ernest.onBattleStart();
+        $gameParty.battleMembers = oldMembers;
+        assert.ok([sam, ernest, ally].every(member => member.states.includes(215)));
+        assert.deepEqual(ally.states, [215], "allies get only the song");
+        // Dan's intro adds five viewers after the native value is set.
+        globalThis.$gameActors = { actor(id) { return id === 1 ? sam : id === 6 ? new Game_Actor(6, 5) : null; } };
+        const oldCommon211 = $dataCommonEvents[211];
+        const introList = Array.from({ length: 10 }, () => ({ code: 0, parameters: [] }));
+        introList[3] = { code: 122, parameters: [568, 568, 0, 1, 812] };
+        $dataCommonEvents[211] = { list: introList };
+        variableValues.set(812, 12);
+        const intro = new FakeInterpreter(0, 0, 0, 3, 122, [568, 568, 0, 1, 812]);
+        intro._list = introList;
+        const originalSet = FakeInterpreter.prototype.command122;
+        FakeInterpreter.prototype.command122 = function(params) {
+            if (params[0] === 568) variableValues.set(568, variableValues.get(params[4]));
+            return originalSet.call(this, params);
+        };
+        try {
+            Game_Interpreter.prototype.command122.call(intro, [568, 568, 0, 1, 812]);
+        } finally {
+            FakeInterpreter.prototype.command122 = originalSet;
+            $dataCommonEvents[211] = oldCommon211;
+        }
+        assert.equal(variableValues.get(568), 17);
+        variableValues.delete(568);
+        variableValues.delete(812);
+        // Sophie slips back into hiding only when neither hidden nor exposed.
+        const oldRandom = Math.random;
+        const oldInBattle = $gameParty.inBattle;
+        $gameParty.inBattle = () => true;
+        try {
+            Math.random = () => 0.1;
+            sophie.removeState(146);
+            sophie.addState(147);
+            sophie.onTurnEnd();
+            assert.deepEqual(sophie.states, [147], "still drawing attention");
+            sophie.removeState(147);
+            Math.random = () => 0.9;
+            sophie.onTurnEnd();
+            assert.deepEqual(sophie.states, [], "failed 50% roll");
+            Math.random = () => 0.1;
+            sophie.onTurnEnd();
+            assert.deepEqual(sophie.states, [146]);
+            $gameParty.inBattle = () => false;
+            sophie.removeState(146);
+            sophie.onTurnEnd();
+            assert.deepEqual(sophie.states, [], "never outside battle");
+        } finally {
+            Math.random = oldRandom;
+            $gameParty.inBattle = oldInBattle;
+        }
+        const rat = new Game_Actor(8, 2);
+        rat.onBattleStart();
+        assert.deepEqual(rat.states, [115], "starts copying Sam");
+        assert.equal(rat.level, 7, "two below Sam");
+        sam.level = 20;
+        rat.onBattleStart();
+        assert.equal(rat.level, 18);
+        rat.level = 19;
+        rat.onBattleStart();
+        assert.equal(rat.level, 19, "never lowered");
+        assert.deepEqual(extraTraits(new Game_Actor(2, 6)), [], "unowned companions are unchanged");
+
+        // Replayed packets and reloads never stack effects.
+        socket.server({ cmd: "ReceivedItems", index: 0, items: upgradeItems });
+        plugin.deliverPendingForDevelopment();
+        assert.equal(leigh.traitObjects().length, 2);
+        socket.close();
+        const save = DataManager.makeSaveContents();
+        assert.equal(save.lookOutsideArchipelago.companionChecks, true);
+        assert.deepEqual(save.lookOutsideArchipelago.ownedUpgrades, [5, 6, 8, 11, 12, 16]);
+        DataManager.setupNewGame();
+        assert.deepEqual(extraTraits(leigh), [], "no effects without a bound AP save");
+        DataManager.extractSaveContents(save);
+        assert.deepEqual(extraTraits(leigh), [[32, 15, 0.12]]);
+        assert.equal(leigh.traitObjects().length, 2);
+        // Offline join still records a check for the next connection.
+        $gameParty.addActor(5);
+        assert.ok(plugin.checkedKeys().includes("companion_join_05"));
+
+        const unknown = structuredClone(save);
+        unknown.lookOutsideArchipelago.ownedUpgrades = [9];
+        assert.throws(() => DataManager.extractSaveContents(unknown), /Unsupported Archipelago save state/);
+        const forged = structuredClone(save);
+        forged.lookOutsideArchipelago.companionChecks = false;
+        assert.throws(() => DataManager.extractSaveContents(forged), /Unsupported Archipelago save state/);
+
+        DataManager.setupNewGame();
+        connect(true, "companion-seed-2", 2);
+        assert.equal(plugin.connectionState, "error");
+        assert.match(plugin.connectionError, /companion upgrades differ/);
+    } finally {
+        globalThis.$gameParty = oldParty;
+        globalThis.$gameActors = oldActors;
+        DataManager.setupNewGame();
+    }
+});
+
+test("Supply Cache grants seeded random consumables once and skips full stacks", () => {
+    const oldParty = globalThis.$gameParty;
+    const oldItems = globalThis.$dataItems;
+    const table = require("../apworld/lookoutside/supplies.json").table;
+    globalThis.$dataItems = Object.fromEntries(table.map(row => [row.id, { id: row.id, name: row.name }]));
+    const counts = new Map();
+    let capacity = 99;
+    globalThis.$gameParty = {
+        numItems(item) { return counts.get(item.id) || 0; },
+        maxItems() { return capacity; },
+        gainItem(item, amount) { counts.set(item.id, (counts.get(item.id) || 0) + amount); },
+    };
+    const total = () => [...counts.values()].reduce((sum, value) => sum + value, 0);
+    try {
+        DataManager.setupNewGame();
+        plugin.bindIdentityForDevelopment("supply-seed", 0, 1);
+        plugin.activateForDevelopment();
+        plugin.configureItemDefinitionsForDevelopment(plugin.developmentData().itemDefinitions);
+        plugin.queueReceivedItemsForDevelopment(0, [{ item: 540500001 }, { item: 540500001 }]);
+        plugin.deliverPendingForDevelopment();
+        assert.equal(total(), 6, "three consumables per cache");
+        assert.deepEqual(plugin.pendingItems(), []);
+        assert.ok([...counts.keys()].every(id => table.some(row => row.id === id)));
+        const first = new Map(counts);
+
+        // The same seed and indexes always roll the same items.
+        counts.clear();
+        DataManager.setupNewGame();
+        plugin.bindIdentityForDevelopment("supply-seed", 0, 1);
+        plugin.activateForDevelopment();
+        plugin.configureItemDefinitionsForDevelopment(plugin.developmentData().itemDefinitions);
+        plugin.queueReceivedItemsForDevelopment(0, [{ item: 540500001 }, { item: 540500001 }]);
+        plugin.deliverPendingForDevelopment();
+        assert.deepEqual(counts, first);
+        // A replayed packet is already acknowledged and grants nothing more.
+        plugin.queueReceivedItemsForDevelopment(0, [{ item: 540500001 }, { item: 540500001 }]);
+        plugin.deliverPendingForDevelopment();
+        assert.equal(total(), 6);
+
+        // Full stacks are skipped without holding up the delivery queue.
+        capacity = 0;
+        plugin.queueReceivedItemsForDevelopment(2, [{ item: 540500001 }]);
+        plugin.deliverPendingForDevelopment();
+        assert.equal(total(), 6);
+        assert.deepEqual(plugin.pendingItems(), []);
+    } finally {
+        globalThis.$gameParty = oldParty;
+        globalThis.$dataItems = oldItems;
+        plugin.deactivate();
+        DataManager.setupNewGame();
+    }
 });

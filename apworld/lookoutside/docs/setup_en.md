@@ -1,6 +1,6 @@
 # Look Outside development playtest setup
 
-This APWorld is for local development on Normal difficulty only. Hard and Easy
+This APWorld is for local development on Survivor Mode (Normal difficulty) only. Explorer Mode and Cursed Mode
 sessions are rejected.
 
 <!-- BEGIN GENERATED REGISTRY SUMMARY -->

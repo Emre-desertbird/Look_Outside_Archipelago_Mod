@@ -24,7 +24,7 @@ a release requirement. New AP sessions require `LOA_DEV_MODE=1`.
 | Component | Current target |
 | --- | --- |
 | Game | Windows Look Outside, game ID `51778622`, build `74642914` |
-| Difficulty | **Normal**; Easy and Hard cannot activate this APWorld |
+| Difficulty | **Survivor Mode** (Normal); Explorer Mode and Cursed Mode cannot activate this APWorld |
 | Archipelago | Minimum client version `0.6.7`; tested with Archipelago `0.6.7` |
 | Registry / save format | Registry **74**, AP save schema **7** |
 | Generation logic | `chronological_access_v1` |
@@ -72,6 +72,68 @@ Ground Floor Janitor Closet, Floor 3 Janitor Closet, Eye Apartment, Garage Side
 Room, Rat Lair North, and Basement Storage. Nestor's early, rooted, and mound
 body victories resolve one shared key check. Kaeley's guaranteed key drop is the
 explicitly approved exception to excluding standalone friendly-kill checks.
+
+### Optional activity checks
+
+Set `activity_checks: true` in the player YAML to add three checks:
+**Cooking - First Meal**, **Cooking - Third Meal** and **Crafting - First Item**.
+Cooking counts meals that finish at the home oven. Crafting counts the first
+successful recipe at the crafting table, which needs the Crafting Kit from
+Apartment 37. The food and crafted item stay yours; nothing vanilla is suppressed.
+
+These locations are **excluded**: they only ever hold filler, for you or another
+player, so skipping cooking or crafting never blocks anyone. Each adds one
+**Supply Cache** to the pool.
+
+A **Supply Cache** is filler that gives three random consumables when received:
+snacks, drinks, basic medicine and cooking ingredients are common; better medicine,
+meals, alcohol and throwables are rarer. Rolls depend on the seed and the item's
+receive order, so a reload or replayed packet gives the same items. A full stack
+skips that roll. Supply Caches also replace generic filler (formerly extra Mops). With the option off,
+seeds keep the same 273 locations and items. The plugin enables these checks only
+when the seed's slot data says so; meals and crafts before connecting do not count.
+Activity checks use their own IDs (`5930000xx`) outside registry74, so existing
+registry74 seeds and saves stay compatible.
+
+### Optional companion upgrades
+
+Set `companion_upgrades: true` to add one **useful** upgrade item per recruitable
+companion (17 items), plus a **Companion - <Name> Joins** check the first time
+each one enters your party. Join checks are excluded (filler only), because
+recruitment depends on visitors and choices. Recruitment itself stays vanilla.
+
+Each upgrade is a **passive** that fits that companion's playstyle and adds to
+their normal abilities; nothing is removed. An upgrade received before that
+companion joins is kept and applies once they do. Effects are recalculated from
+saved ownership, so reconnecting, reloading or a replayed item packet never stacks
+them. They only apply in a bound AP save.
+
+| Companion | Passive |
+| --- | --- |
+| Lyle | **Flash Photography**: Normal attacks may Blind (20%) |
+| Aster | **Safety First**: Enemies target him half as often; +10% evasion |
+| Joel | **Gum Regrowth**: Regenerates 5% HP each turn, offsetting his HP-cost teeth skills |
+| Leigh | **Unsettling Smile**: Normal attacks may Stun (12%), setting up Devour |
+| Dan | **Loyal Fans**: Each video intro starts with 5 extra viewers |
+| Hellen | **Killer Instinct**: +10% critical hit rate |
+| Rat Child | **Daddy's Shadow**: Starts every battle already copying Sam (Copy Dad), and catches up to two levels below Sam |
+| Roaches | **Endless Swarm**: Regenerates 6% HP each turn, fueling HP-cost roach attacks |
+| Ernest | **Warm-Up Act**: The party starts every battle with Song of Speed |
+| Sophie | **Slippery**: Starts every battle Hidden; at the end of a turn when she is neither Hidden nor drawing attention, 50% chance to slip back into hiding |
+| Papineau | **Big Guy**: +20% Max HP, which also strengthens Bear Hug |
+| Montgomery | **Iron Stomach**: Immune to Poison; takes half Fire damage |
+| Xaria | **Talks Back**: 20% counterattack chance; immune to Panic |
+| Morton | **Scavenger**: Enemies drop items twice as often while Morton is in the party |
+| Spider | **Venomous**: Normal attacks may Poison (25%) |
+| Audrey | **Coin Return**: Regenerates 10% STM each turn, fueling Keep the Change |
+| Phillippe | **Spore Cloud**: Normal attacks may infect with Spore Poison (30%), which Assume Control needs |
+
+Chances and percentages are deliberately modest. "Normal attacks" includes any
+skill that applies the attacker's on-hit states, as the game's own attack does.
+
+Wretch, Jacob and Melt are not included: build 74642914 never adds them to the
+party. These locations use IDs
+`5940000xx`; upgrade items use `5404000xx`.
 
 ### Quest choices and shared resolutions
 
@@ -256,7 +318,7 @@ source checkout and project-local copies of both installations.
 - Python **3.10 or newer**, available as `python` in PowerShell.
 - A local checkout of this repository in a writable folder, with space for
   copies of both installations.
-- A fresh **Normal** game and a seed generated with the current APWorld.
+- A fresh **Survivor Mode** game and a seed generated with the current APWorld.
 
 This mod adds `js/plugins/LookOutsideArchipelago.js` and registers it in a
 replacement `js/plugins.js`. There is no separate general-purpose mod loader or
@@ -306,7 +368,11 @@ names. Keep unrelated YAMLs out of this player directory.
 ```yaml
 name: LookOutside_Test
 game: Look Outside
-Look Outside: {}
+Look Outside:
+  # Optional cooking/crafting checks that only hold filler. Off by default.
+  activity_checks: false
+  # Optional companion upgrade items plus filler-only "joins the party" checks.
+  companion_upgrades: false
 ```
 
 The supplied fixture contains this configuration. On first setup, copy it and
@@ -355,7 +421,7 @@ Set-Location "$projectRoot\.local\game-smoke"
 .\Game.exe --user-data-dir="$projectRoot\.local\nw-profile"
 ```
 
-1. Start a **new Normal game**.
+1. Start a **new Survivor Mode game**.
 2. Open **Archipelago Connect** from the in-game menu before taking any audited
    reward, resolving a tracked quest, or advancing a day.
 3. Enter `localhost:38281` for the local server, the exact YAML player name
@@ -396,7 +462,7 @@ your original plugin list. No game assets are included.
    `custom_worlds` folder and restart AP. Use the included `LookOutside.yaml`
    for generation, then follow the extracted README's **Generate and host** and
    **Play** sections. Launch the test game with `LOA_DEV_MODE=1`, start a fresh
-   Normal save, and connect before collecting randomized rewards.
+   Survivor Mode save, and connect before collecting randomized rewards.
 
 ```powershell
 $gameSource = Read-Host 'Path to your Look Outside installation'
@@ -429,7 +495,7 @@ the filename alone does not identify every source revision.
 | Situation | Action |
 | --- | --- |
 | AP menu is missing | Launch the staged `Game.exe` with `LOA_DEV_MODE=1`; verify the plugin is registered in that copy. |
-| Connection refuses difficulty/build | Use Normal and the audited build. Guards reject unsupported versions. |
+| Connection refuses difficulty/build | Use Survivor Mode and the audited build. Guards reject unsupported versions. |
 | First connection says the save is ineligible | Start a fresh mod-created save and bind before an audited reward, terminal resolution, or day rollover. Existing vanilla saves cannot be converted reliably. |
 | Wrong seed or slot | Load that seed/slot's matching save, or start a fresh one. A bound save cannot be reassigned. |
 | Items have not appeared | Check connection and the pending queue in Status; clear inventory space. Repeat packets do not grant duplicate items. |

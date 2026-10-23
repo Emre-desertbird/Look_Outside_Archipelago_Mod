@@ -1,0 +1,33 @@
+{
+  "feature_version": 1,
+  "notes": "Optional activity checks (activity_checks option). Each location keeps the native food or crafted item and is EXCLUDED so it only ever holds filler. One Supply Cache (see supplies.json) per location keeps the pool balanced. Never reuse these IDs.",
+  "locations": [
+    {
+      "key": "activity_cook_meal_1",
+      "name": "Cooking - First Meal",
+      "ap_id": 593000001,
+      "region": "Apartment 33",
+      "meals": 1,
+      "evidence": "Map003 e2 oven calls CE44; CE44 c329 sets cookedMeal59 once a meal is on the table"
+    },
+    {
+      "key": "activity_cook_meal_3",
+      "name": "Cooking - Third Meal",
+      "ap_id": 593000003,
+      "region": "Apartment 33",
+      "meals": 3,
+      "evidence": "Same CE44 c329; meals are counted by the plugin because no native lifetime counter exists"
+    },
+    {
+      "key": "activity_craft_1",
+      "name": "Crafting - First Item",
+      "ap_id": 593000101,
+      "region": "Apartment 33",
+      "requires_region": "Apartment 37",
+      "evidence": "Map035 e22 p0 Crafting Kit sets238; Map003 e37 crafting table calls CE45; CE45 c126 consumes inputs and grants the result"
+    }
+  ],
+  "items": [
+    {"name": "Supply Cache", "quantity": 3}
+  ]
+}

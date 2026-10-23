@@ -6,21 +6,32 @@ from importlib import resources
 from BaseClasses import Item, ItemClassification, Location, LocationProgressType, Region, Tutorial
 from worlds.AutoWorld import WebWorld, World
 
+from .access import region
 from .access_data import GRAPH
 from .chronology import LOGIC_VERSION, day
+from .options import LookOutsideOptions
 
 
 DATA = json.loads(resources.files(__package__).joinpath("vertical_slice.json").read_text(encoding="utf-8"))
 GAME = DATA["game_name"]
-LOCATIONS = {entry["name"]: entry["ap_id"] for entry in DATA["locations"]}
-ITEMS = {entry["name"]: entry["ap_id"] for entry in DATA["items"]}
+# Optional features live outside the audited registry so its 273 checks and
+# registry version stay unchanged. IDs are reserved even while a feature is off.
+ACTIVITIES = json.loads(resources.files(__package__).joinpath("activities.json").read_text(encoding="utf-8"))
+COMPANIONS = json.loads(resources.files(__package__).joinpath("companions.json").read_text(encoding="utf-8"))
+SUPPLIES = json.loads(resources.files(__package__).joinpath("supplies.json").read_text(encoding="utf-8"))
+SUPPLY_CACHE = SUPPLIES["item"]
+COMPANION_LOCATIONS = [row["location"] for row in COMPANIONS["companions"]]
+COMPANION_ITEMS = [{**row["item"], "quantity": 1} for row in COMPANIONS["companions"]]
+LOCATIONS = {entry["name"]: entry["ap_id"]
+             for entry in DATA["locations"] + ACTIVITIES["locations"] + COMPANION_LOCATIONS}
+ITEMS = {entry["name"]: entry["ap_id"] for entry in DATA["items"] + COMPANION_ITEMS + [SUPPLY_CACHE]}
 ITEM_CLASSIFICATIONS = {
     entry["name"]: {
         "progression": ItemClassification.progression,
         "useful": ItemClassification.useful,
         "filler": ItemClassification.filler,
     }[entry["classification"]]
-    for entry in DATA["items"]
+    for entry in DATA["items"] + COMPANION_ITEMS + [SUPPLY_CACHE]
 }
 
 
@@ -47,6 +58,8 @@ class LookOutsideWorld(World):
 
     game = GAME
     web = LookOutsideWebWorld()
+    options_dataclass = LookOutsideOptions
+    options: LookOutsideOptions
     hidden = True
     location_name_to_id = LOCATIONS
     item_name_to_id = ITEMS
@@ -70,6 +83,23 @@ class LookOutsideWorld(World):
             parent.locations.append(location)
             if entry.get("missable"):
                 location.progress_type = LocationProgressType.EXCLUDED
+        if self.options.activity_checks:
+            for entry in ACTIVITIES["locations"]:
+                parent = regions[entry["region"]]
+                location = LookOutsideLocation(self.player, entry["name"], entry["ap_id"], parent)
+                if "requires_region" in entry:
+                    location.access_rule = region(entry["requires_region"]).as_ap_rule(self.player)
+                # Filler only: an optional activity must never hold anyone's progression.
+                location.progress_type = LocationProgressType.EXCLUDED
+                parent.locations.append(location)
+        if self.options.companion_upgrades:
+            # Recruitment depends on visitors and choices, so joins are never
+            # treated as reliable: excluded locations only hold filler.
+            home = regions["Apartment 33"]
+            for entry in COMPANION_LOCATIONS:
+                location = LookOutsideLocation(self.player, entry["name"], entry["ap_id"], home)
+                location.progress_type = LocationProgressType.EXCLUDED
+                home.locations.append(location)
         for entry in GRAPH.events:
             location = LookOutsideLocation(self.player, entry.location, None, regions[entry.region])
             location.access_rule = entry.rule.as_ap_rule(self.player)
@@ -83,7 +113,9 @@ class LookOutsideWorld(World):
                                         item_type=LookOutsideItem, rule=day(15).as_ap_rule(self.player))
 
     def create_items(self) -> None:
-        for entry in DATA["items"]:
+        rows = (DATA["items"] + (ACTIVITIES["items"] if self.options.activity_checks else []) +
+                (COMPANION_ITEMS if self.options.companion_upgrades else []))
+        for entry in rows:
             self.multiworld.itempool.extend(
                 self.create_item(entry["name"]) for _ in range(entry["quantity"])
             )
@@ -94,7 +126,7 @@ class LookOutsideWorld(World):
 
     def get_filler_item_name(self) -> str:
         # Used when a generic AP option removes an item from the pool.
-        return "Mop"
+        return SUPPLY_CACHE["name"]
 
     def set_rules(self) -> None:
         # Client endings have no Day15 minimum; generation proves the safe fallback.
@@ -110,4 +142,8 @@ class LookOutsideWorld(World):
             "registry_version": DATA["registry_version"],
             "audited_game_id": DATA["audited_game_id"],
             "audited_version_id": DATA["audited_version_id"],
+            "activity_checks": bool(self.options.activity_checks),
+            "activity_version": ACTIVITIES["feature_version"],
+            "companion_upgrades": bool(self.options.companion_upgrades),
+            "companion_version": COMPANIONS["feature_version"],
         }

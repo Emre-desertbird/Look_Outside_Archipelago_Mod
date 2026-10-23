@@ -21,7 +21,7 @@ def run(world):
         assert location.item.code is None and location.item.advancement
         assert location.name not in world.location_name_to_id
         assert location.item.name not in world.item_name_to_id
-    assert len(world.location_name_to_id) == 273
+    assert len(world.location_name_to_id) == 273 + len(module.ACTIVITIES["locations"]) + len(module.COMPANION_LOCATIONS)
     keys = {row["key"]: row["name"] for row in data["locations"]}
 
     def state_without(*missing):

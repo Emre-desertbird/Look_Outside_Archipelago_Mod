@@ -12,6 +12,9 @@ from ending_warning_scope import ENDING_CHOICES
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 REGISTRY = PROJECT_DIR / "apworld" / "lookoutside" / "vertical_slice.json"
+ACTIVITIES = PROJECT_DIR / "apworld" / "lookoutside" / "activities.json"
+COMPANIONS = PROJECT_DIR / "apworld" / "lookoutside" / "companions.json"
+SUPPLIES = PROJECT_DIR / "apworld" / "lookoutside" / "supplies.json"
 PLUGIN = PROJECT_DIR / "game_plugin" / "LookOutsideArchipelago.js"
 BEGIN = "    // BEGIN GENERATED DEVELOPMENT REGISTRY\n"
 END = "    // END GENERATED DEVELOPMENT REGISTRY\n"
@@ -24,7 +27,7 @@ def js_object(value: dict, indent: int = 0) -> str:
     return "\n".join(" " * indent + line for line in source.splitlines())
 
 
-def render(data: dict) -> str:
+def render(data: dict, activities: dict, companions: dict, supplies: dict) -> str:
     sources = []
     resolutions = {family["key"] for family in data.get("quest_families", [])
                    if family.get("resolve_on_acquisition")}
@@ -81,6 +84,10 @@ def render(data: dict) -> str:
                             **({"deliverySwitches": item["delivery_switches"]} if "delivery_switches" in item else {})}
         for item in data["items"]
     }
+    definitions[str(supplies["item"]["ap_id"])] = {"kind": "cache", "id": 1, "name": supplies["item"]["name"]}
+    for companion in companions["companions"]:
+        definitions[str(companion["item"]["ap_id"])] = {
+            "kind": "upgrade", "id": companion["actor_id"], "name": companion["item"]["name"]}
     lines = [
         "    // Source data generated from the active APWorld registry.",
         "    const sourceSignatures = Object.freeze([",
@@ -125,6 +132,26 @@ def render(data: dict) -> str:
             lines.append("        Object.freeze(" + js_object(definition) + "),")
     lines.append("    ]);")
     lines.append("    const endingChoices = Object.freeze(" + js_object(ENDING_CHOICES) + ");")
+    lines.append(f"    const activityVersion = {activities['feature_version']};")
+    lines.append("    const activityLocations = Object.freeze([")
+    for location in activities["locations"]:
+        entry = {"key": location["key"], "name": location["name"], "apId": location["ap_id"]}
+        if "meals" in location:
+            entry["meals"] = location["meals"]
+        else:
+            entry["crafts"] = 1
+        lines.append("        Object.freeze(" + json.dumps(entry, ensure_ascii=False) + "),")
+    lines.append("    ]);")
+    supply_table = [[row["id"], row["weight"]] for row in supplies["table"]]
+    lines.append(f"    const supplyCache = Object.freeze({{ rolls: {supplies['rolls']}, table: {json.dumps(supply_table)} }});")
+    lines.append(f"    const companionVersion = {companions['feature_version']};")
+    lines.append("    const companionUpgrades = Object.freeze([")
+    for companion in companions["companions"]:
+        entry = {"actorId": companion["actor_id"], "name": companion["name"],
+                 "key": companion["location"]["key"], "apId": companion["location"]["ap_id"],
+                 "passive": companion["passive"], "summary": companion["summary"], "effect": companion["effect"]}
+        lines.append("        Object.freeze(" + json.dumps(entry, ensure_ascii=False) + "),")
+    lines.append("    ]);")
     return "\n".join(lines) + "\n"
 
 
@@ -134,6 +161,9 @@ def main() -> None:
                         help="Fail if the plugin block differs from the active registry")
     args = parser.parse_args()
     data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    activities = json.loads(ACTIVITIES.read_text(encoding="utf-8"))
+    companions = json.loads(COMPANIONS.read_text(encoding="utf-8"))
+    supplies = json.loads(SUPPLIES.read_text(encoding="utf-8"))
     plugin = PLUGIN.read_text(encoding="utf-8")
     expected_build = ("    const auditedBuild = Object.freeze({ gameId: "
                       f"{data['audited_game_id']}, versionId: {data['audited_version_id']} }});")
@@ -151,7 +181,7 @@ def main() -> None:
     stop = plugin.index(END)
     if stop < start:
         raise ValueError("Generated-registry markers are reversed")
-    expected = render(data)
+    expected = render(data, activities, companions, supplies)
     if args.check:
         if plugin[start:stop] != expected:
             raise SystemExit("Plugin registry is out of sync; run sync_plugin_registry.py")
