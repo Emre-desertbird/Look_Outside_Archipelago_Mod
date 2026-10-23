@@ -1,5 +1,12 @@
 # Look Outside Archipelago — development playtest
 
+> This package comes from a **vibe-coded fork** (written with Claude Code) of
+> [wyldek's original Look Outside Archipelago Mod](https://github.com/wyldek/Look_Outside_Archipelago_Mod).
+> Thanks to wyldek for the mod itself. The fork adds an Archipelago window and log
+> overlay, deadline warnings, optional `activity_checks` and `companion_upgrades`,
+> Supply Cache filler and a Rebreather logic rule. It is not yet verified by a full
+> playthrough.
+
 Survivor Mode (Normal difficulty), game build `74642914`, Archipelago 0.6.7 or newer.
 The package manifest identifies the matching plugin and APWorld registry.
 Start a fresh seed and save when the registry changes. This is a development

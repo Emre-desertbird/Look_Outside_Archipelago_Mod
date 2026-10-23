@@ -1,10 +1,14 @@
 # Development packages
 
-Download [LookOutsideAP-0.0.2-dev74.zip](LookOutsideAP-0.0.2-dev74.zip), extract it
+Download [LookOutsideAP-0.0.3-dev74.zip](LookOutsideAP-0.0.3-dev74.zip), extract it
 into a writable folder, and follow the included `README.md`.
 
-This is a **development playtest build**, for Normal difficulty and audited game
-build `74642914`. It includes chronological generation logic and registry 74.
+This is a **development playtest build** of this fork, for Survivor Mode (Normal
+difficulty) and audited game build `74642914`. It adds the Archipelago window and
+log overlay, deadline warnings, the optional `activity_checks` and
+`companion_upgrades` options, Supply Cache filler and the Rebreather logic rule to
+registry 74. [LookOutsideAP-0.0.2-dev74.zip](LookOutsideAP-0.0.2-dev74.zip) is the
+original mod's last package; keep it to finish seeds generated with it.
 A complete randomized Normal playthrough remains a release requirement.
 
 ## Included files

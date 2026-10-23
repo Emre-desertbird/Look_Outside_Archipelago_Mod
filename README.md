@@ -1,12 +1,66 @@
 # Look Outside Archipelago Mod
 
-An Archipelago integration for **Look Outside**, supporting solo randomizer seeds
-and multiworld games. Explore the building and resolve quests to send checks;
-the items at those locations can belong to you or to another player.
+An [Archipelago](https://archipelago.gg) integration for **Look Outside**, for solo
+randomizer seeds and multiworld games. Explore the building and resolve quests to
+send checks; the items at those locations can belong to you or to another player.
 
-**This is a development playtest build.** The access graph and targeted native
-event tests are implemented, but a complete randomized Normal playthrough remains
-a release requirement. New AP sessions require `LOA_DEV_MODE=1`.
+> **About this fork.** This repository is a **vibe-coded extension and improvement
+> attempt** of [wyldek's original Look Outside Archipelago Mod](https://github.com/wyldek/Look_Outside_Archipelago_Mod).
+> The additions here were written with an AI coding assistant (Claude Code) and
+> reviewed by running the project's tests, real seed generation and in-game probes,
+> but **not yet by a complete playthrough**. Treat it as an experimental playtest build.
+>
+> **Huge thanks to wyldek**, who built the actual mod: the audited registry of
+> 273 checks, the access and calendar logic, the game plugin, the save handling and
+> the extensive native test suite. This fork stands entirely on that work.
+
+**This is a development playtest build.** New AP sessions require `LOA_DEV_MODE=1`;
+the launchers and commands below set it for you.
+
+## What this fork adds
+
+| Addition | Summary |
+| --- | --- |
+| [Archipelago window and log overlay](#playing-the-archipelago-window-and-overlay) | One **Archipelago** menu entry (Connect and Status merged) with Overview, Log, Items, Locations, Deadlines and Settings tabs, plus an optional transparent log overlay on the map. |
+| [Quest deadline warnings](#days-and-chronological-safety) | Status and Go to Next Day warn about Charan's Rose and cave, Leigh's Phone quest and the crossword book, with the missing item and progress. |
+| [Optional activity checks](#optional-activity-checks) | `activity_checks`: cooking your first and third meal and crafting your first item. Filler only; you keep the food and item. |
+| [Optional companion upgrades](#optional-companion-upgrades) | `companion_upgrades`: one passive per recruitable companion (17) plus a filler-only check when each first joins. |
+| [Supply Cache](#optional-activity-checks) | Filler that grants three random consumables, replacing extra Mops. |
+| [Rebreather logic](#access-supplies-and-alternatives) | Sea valve areas now logically require the Rebreather, matching vanilla. |
+| Small fixes | Difficulty is named **Survivor Mode** as in the game, and a pasted `/connect host:port` line connects. |
+
+Both options are **off by default**, so a default YAML produces the same 273
+checks as the original mod.
+
+## Quick start
+
+1. **Get the package.** Download [LookOutsideAP-0.0.3-dev74.zip](releases/LookOutsideAP-0.0.3-dev74.zip)
+   and follow [Install the extracted package](#install-the-extracted-package). It
+   builds a **separate modded copy** of the game; your Steam installation stays vanilla.
+2. **Add the world.** Put `lookoutside.apworld` into Archipelago's `custom_worlds`
+   folder and restart Archipelago.
+3. **Write your YAML.** Pick your player name and options:
+
+   ```yaml
+   name: YourName
+   game: Look Outside
+   Look Outside:
+     activity_checks: false     # cooking/crafting checks (filler only)
+     companion_upgrades: false  # companion passives + join checks (filler only)
+   ```
+
+4. **Generate and host.** Generate the seed with Archipelago, then host it on your
+   PC (`ArchipelagoServer`) or upload the generated ZIP on
+   [archipelago.gg](https://archipelago.gg) under **Host Game**. The website
+   cannot *generate* this custom world, but it can host a seed you generated.
+5. **Play.** Start the modded copy with `LOA_DEV_MODE=1`, begin a **new Survivor
+   Mode** game, open **Archipelago** in the pause menu and connect before picking
+   anything up. Enter just the address (for example `archipelago.gg:49170`) and
+   your YAML name. No separate Archipelago client is needed: the game connects
+   to the server itself.
+
+Read [What can play out differently from vanilla](#what-can-play-out-differently-from-vanilla)
+before your first run.
 
 ## Contents
 
@@ -14,10 +68,13 @@ a release requirement. New AP sessions require `LOA_DEV_MODE=1`.
 - [What becomes an AP check or item](#what-becomes-an-ap-check-or-item)
 - [What stays vanilla](#what-stays-vanilla)
 - [How progression logic works](#how-progression-logic-works)
+- [What can play out differently from vanilla](#what-can-play-out-differently-from-vanilla)
 - [Winning, missed checks, and release](#winning-missed-checks-and-release)
+- [Playing: the Archipelago window and overlay](#playing-the-archipelago-window-and-overlay)
 - [Setup guide](#setup-guide)
 - [Saves, updating, and troubleshooting](#saves-updating-and-troubleshooting)
 - [Verification and developer references](#verification-and-developer-references)
+- [Credits and license](#credits-and-license)
 
 ## Supported version and scope
 
@@ -25,15 +82,15 @@ a release requirement. New AP sessions require `LOA_DEV_MODE=1`.
 | --- | --- |
 | Game | Windows Look Outside, game ID `51778622`, build `74642914` |
 | Difficulty | **Survivor Mode** (Normal); Explorer Mode and Cursed Mode cannot activate this APWorld |
-| Archipelago | Minimum client version `0.6.7`; tested with Archipelago `0.6.7` |
-| Registry / save format | Registry **74**, AP save schema **7** |
+| Archipelago | Minimum client version `0.6.7`; tested with Archipelago `0.6.7` and `0.6.8` |
+| Registry / save format | Registry **74**, AP save schema **7**, APWorld `0.0.3` |
 | Generation logic | `chronological_access_v1` |
-| Randomized pool | **273 locations and 273 item copies**, representing 233 distinct item names |
-| Item classification | 81 progression, 122 useful, 70 filler **copies** |
+| Randomized pool | **273 locations and items** by default; 276 with `activity_checks`, 290 with `companion_upgrades`, 293 with both |
+| Item classification | Default pool: 81 progression, 122 useful, 70 filler **copies** |
 | Access graph | 74 regions, 81 entrances, a rule for every randomized location |
 | Quest handling | 35 shared resolution groups |
 
-The 273 item copies comprise **70 weapons, 97 armor/accessories, 103 other
+The 273 default item copies comprise **70 weapons, 97 armor/accessories, 103 other
 physical items, and three virtual access unlocks**. There are 64 distinct items
 classified as progression. That classification does not always mean the item
 gates an AP location; see the [internal item reference](docs/internal_progression_item_limits.md).
@@ -226,7 +283,7 @@ of their own randomized rewards.
 | Ordinary locks | Nine Simple Keys (3) receipts, or 27 keys, for any reviewed ordinary lock. The pool supplies ten bundles/30 keys for all 26 locks, including vanilla-only safes and every maze turn. |
 | Iris locks | Six Iris Key receipts cover six spends in any order; seven copies are in the pool. |
 | Unlabeled Game | Cartridge plus all colored-key supplies: one each green/red/blue/white, three yellow, and one Black Keys (2) receipt. Together they cover nine locks. |
-| Sea valves | One copy of each of the four playable valves, each for its own lock. |
+| Sea valves | One copy of each of the four playable valves, each for its own lock. The West, East and Lower areas (and the Depths) also require the **Rebreather**, which vanilla hands out before any valve door; without it each air bubble refills about half as much oxygen. |
 
 These are conservative **placement rules**. The game lets you use a key as soon
 as it arrives; it does not make you wait for nine bundles before opening a door.
@@ -271,11 +328,39 @@ the rule. New generation is necessary to apply these rules to an older seed.
 
 **Limits:** this is a targeted calendar model, not a simulation of every action
 or visitor schedule. You can still advance too soon, miss a visitor, or spend
-too long near an intraday cutoff. The Status deadline list is incomplete.
+too long near an intraday cutoff. The Deadlines tab lists only the audited deadlines.
 Visitor-order variation, repeated Shadow encounters, and travel time near
 deadlines need full chronological playtesting. See
 [calendar evidence](docs/calendar_deadlines.md) and
 [per-item limitations](docs/internal_progression_item_limits.md).
+
+## What can play out differently from vanilla
+
+Story events, quest dates, recruitment and endings stay vanilla. What changes is
+**when you get keys and quest items**, so some parts of the game can open earlier
+(or later) than in a normal run. Generation guarantees every check stays reachable;
+these are the effects worth knowing:
+
+| Item | What can change | What to know |
+| --- | --- | --- |
+| **Roof Access Key** | Normally a late ritual reward; it can arrive at any time and open the roof door early. | The roof leads to the final fight and an **ending**; the game warns *"There is no going back after this."* Losing that fight is a vanilla Game Over (reload your save). Winning ends your run: goal complete, remaining checks released. **Only go up when you are ready to finish.** |
+| **Elevator Access** | Unlocks the elevator without beating the Elevator Freak (power is still needed). | The Freak stays as a separate optional check and only fights when you talk to it. |
+| **Power Restored** | If received early, the blackout still happens and is fixed at once. | The two dark-basement encounters stay available even though the blackout scene is skipped. |
+| **Keys, valves, discs** | Areas can open earlier or later than in vanilla. | Rooms with a fixed opening day still open on that day: original teeth Day 1, Apartment 31 Day 2, Kaeley Day 3, taxidermy Day 4, late teeth Day 8. Key budgets cover every lock, including wrong turns. |
+| **Quest items** (Rose, Phone, Telescope Pieces, Canvas Carry Bag, Stationery, Fountain Pen, Radio, Medic-in-a-jar) | Quests can be done earlier, for example carrying the Phone home starts Leigh's quest right away. | Early delivery is covered by the native probes, including items that arrive before you meet the giver. |
+| **Basement Key** | Dan only offers his quest while you hold it. | Dan's check already requires it in logic; a late key just delays that quest. |
+| **Apt. 33 Key** (your home key) | Nothing: the game never checks for it. | You cannot be locked out of your apartment. |
+
+**Timed quests.** Generation keeps the inputs early enough: Rose reachable by Day 5,
+Phone by Day 10, nine key bundles by Day 4, the crossword book by Day 14. In a
+multiworld a needed item may sit in a friend's world, so check the **Deadlines**
+tab before using Go to Next Day.
+
+**Nothing can lock you out of finishing.** The Day 15 home door ending is always
+available and completes the goal. Nine progression items have no logic rule at
+all (Child Barrier Key, Door Knob, Love Letter, Laundry, Small Red Key, Vending
+Machine Key, Clown Drawing, Roof Access Key, Apt. 33 Key); they only affect
+optional vanilla content.
 
 ## Winning, missed checks, and release
 
@@ -298,10 +383,31 @@ to justify the audited impossible deadline chains. If release is disabled, the
 goal still counts, but remaining checks need a host permission change. See
 [ending behavior](docs/ending_release.md).
 
+## Playing: the Archipelago window and overlay
+
+The pause menu has one **Archipelago** entry. Its window shows a status pill
+(Connected, Connecting, Offline, Error), your seed, slot and server, a progress
+bar and these tabs:
+
+| Tab | Shows |
+| --- | --- |
+| **Overview** | Cards for checks (and how many are waiting to be sent), items received, goal, calendar and companion upgrades. Connection settings open automatically while disconnected. |
+| **Log** | Server messages in Archipelago's usual colours for players, items and locations. |
+| **Items** | Everything you received: "found at" a location, or "from" another player. |
+| **Locations** | Missing checks grouped by area. Missing does not mean reachable yet. |
+| **Deadlines** | The audited time limits and what each still needs. |
+| **Settings** | The log overlay: on/off, left or right side, 3, 6 or 10 lines. |
+
+The **log overlay** is a small transparent box in the corner of the game area with
+the latest messages: items found and sent, Supply Cache contents, upgrades and
+checks made offline. Older lines fade. It hides during dialogue, menus and battles,
+lets clicks through, and can also be switched in the game's **Options** as
+*Archipelago Log*. Other players' item sends appear only in the Log tab.
+
 ## Setup guide
 
 For installation from a ZIP, download
-[LookOutsideAP-0.0.2-dev74.zip](releases/LookOutsideAP-0.0.2-dev74.zip) from the
+[LookOutsideAP-0.0.3-dev74.zip](releases/LookOutsideAP-0.0.3-dev74.zip) from the
 repository's **`releases/` folder** and follow
 [Install the extracted package](#install-the-extracted-package). It includes the
 built APWorld and everything needed to prepare the game-side mod files; a source
@@ -362,8 +468,8 @@ underlying installation changes, use a new project-local `--out-dir`.
 ### 3. Create the player YAML and generate a seed
 
 For an initial solo test, create `.local/players/LookOutside.yaml` using this
-sample. Use a different file for each player in a multiworld and unique player
-names. Keep unrelated YAMLs out of this player directory.
+sample, and change `name` to the name you want to appear as in the room. Use a
+different file for each player in a multiworld and unique player names. Keep unrelated YAMLs out of this player directory.
 
 ```yaml
 name: LookOutside_Test
@@ -436,14 +542,7 @@ Set-Location "$projectRoot\.local\game-smoke"
    the test copy. Server/slot settings are remembered; passwords are masked and
    are not saved.
 
-The **Archipelago** window has tabs: **Overview** (connection, checks, items,
-goal, calendar and upgrade cards), **Log** (server messages with player, item and
-location names), **Items** (everything received, sender and location),
-**Locations** (missing checks by area), **Deadlines** and **Settings**. A small
-transparent **log overlay** shows the latest messages on the map; switch it in
-Settings or the game's **Options** as *Archipelago Log*. It hides during dialogue,
-menus and battles. Inventory-full items wait in a
-saved queue; make space for delivery. A three-key bundle needs room for all three.
+Inventory-full items wait in a saved queue; make space for delivery. A three-key bundle needs room for all three.
 After binding, offline checks are saved for reconnect, and already-received queued
 items can deliver on a compatible offline reload. Items that have not reached
 the client still require a server connection.
@@ -505,7 +604,9 @@ the filename alone does not identify every source revision.
 | Connection refuses difficulty/build | Use Survivor Mode and the audited build. Guards reject unsupported versions. |
 | First connection says the save is ineligible | Start a fresh mod-created save and bind before an audited reward, terminal resolution, or day rollover. Existing vanilla saves cannot be converted reliably. |
 | Wrong seed or slot | Load that seed/slot's matching save, or start a fresh one. A bound save cannot be reassigned. |
-| Items have not appeared | Check connection and the pending queue in Status; clear inventory space. Repeat packets do not grant duplicate items. |
+| Items have not appeared | Check the Archipelago window's Overview and Items tabs; clear inventory space. Repeat packets do not grant duplicate items. |
+| Connection fails with a hosted room | Enter only `host:port` (a pasted `/connect host:port` also works). archipelago.gg rooms can change port after sleeping; check the room page. |
+| No Archipelago pop-up after launching | None is expected: open the pause menu and choose **Archipelago**. |
 | The day has stopped advancing | Use Go to Next Day at the 4 a.m. hold. Review deadlines first. Day 15 has no further quest-day transitions. |
 | Goal counted but checks were not released | Reconnect if offline, or ask the host to permit release. Release-disabled rooms retain unchecked locations. |
 | Save compatibility error after updating | Use the original matching mod/game version, or start a fresh compatible seed/save. Older AP schemas are not silently migrated. |
@@ -519,8 +620,11 @@ compatibility before native AP save state is installed. See
 
 ## Verification and developer references
 
-The recorded checkpoint has **55 Python tests and 45 Node tests passing**, plus
-targeted native event probes. Chronology verification includes 77 native source
+The current checkpoint has **64 Python tests and 51 Node tests passing**. All 22
+native probe groups (922 scenarios) pass inside the staged game, including the
+menu, log overlay, keys, discs, power, chronology, routes, quests and saves. A
+batch of 30 seeds generated with Archipelago 0.6.8 (solo with both options, and
+two-player) reached every check. Earlier checkpoints recorded the following. Chronology verification includes 77 native source
 signatures, 15 native scenarios, and 10 real AP CollectionState cases. AP 0.6.7
 seed 172 reaches all 273 locations; two-player seed 173 reaches all 546 locations
 without ending release. Invalid direct and transitive late-Rose placements are
@@ -549,3 +653,19 @@ python -B tools/sync_setup_guide.py --check
 Older audit documents preserve historical counts; the current status and registry
 supersede those checkpoints. The [initial workplan](docs/initial_codex_workplan.md)
 records design intentions, not authoritative implementation instructions.
+
+## Credits and license
+
+- **Original mod: [wyldek](https://github.com/wyldek)** —
+  [Look_Outside_Archipelago_Mod](https://github.com/wyldek/Look_Outside_Archipelago_Mod).
+  The registry, access and calendar logic, game plugin, save handling, tools and
+  native test suite are wyldek's work. Thank you!
+- **This fork: [Emre-desertbird](https://github.com/Emre-desertbird/Look_Outside_Archipelago_Mod)** —
+  a vibe-coded extension written with Claude Code: the Archipelago window and log
+  overlay, deadline warnings, optional activity checks, companion upgrades, Supply
+  Cache and the Rebreather logic change.
+- **Look Outside** belongs to its developers; no game assets are included.
+  [Archipelago](https://github.com/ArchipelagoMW/Archipelago) is the multiworld
+  randomizer framework this mod plugs into.
+
+Released under the [MIT License](LICENSE).
