@@ -138,11 +138,14 @@ ENTRANCES = (
              "Map079 event5 -> Map080 requires255+21; CE64 command150 socket272 value5"),
     Entrance("Floor 2", "Sea Apartment Entrance", FREE,
              "Map007 event18 -> Map125; Maps137/140 have no valve gate; Rebreather only increases oxygen time"),
-    Entrance("Sea Apartment Entrance", "Sea Apartment West", item("Twilight Valve"),
+    # Vanilla always hands out the Rebreather (Map140 event10) before any valve
+    # door, and oxygen per bubble is tuned for it (CE97/99 halve without it).
+    # Require it past the valves so the deep sea is never logically needed without it.
+    Entrance("Sea Apartment Entrance", "Sea Apartment West", all_of(item("Twilight Valve"), item("Rebreather")),
              "Map125 event7 consumes296 and sets selfA -> Map133/135/136"),
-    Entrance("Sea Apartment Entrance", "Sea Apartment East", item("Midnight Valve"),
+    Entrance("Sea Apartment Entrance", "Sea Apartment East", all_of(item("Midnight Valve"), item("Rebreather")),
              "Map140 event6 consumes297 and sets selfA -> Map143/138; variable444 is only set in unused Map164"),
-    Entrance("Sea Apartment Entrance", "Sea Apartment Lower", item("Abyssal Valve"),
+    Entrance("Sea Apartment Entrance", "Sea Apartment Lower", all_of(item("Abyssal Valve"), item("Rebreather")),
              "Map125 events24/27 advance445 to2; event13 consumes298 -> Map144; local story triggers open Map155/147/149/159/152"),
     Entrance("Sea Apartment Lower", "Sea Apartment Depths", item("Hadal Valve"),
              "Map152 event1 consumes299 -> Map158; event6 advances445 to10 for Lethargy; no combat equipment requirement"),

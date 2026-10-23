@@ -151,6 +151,9 @@ spatial audit and its one-way-door evidence.
   depend on completing a route before the outage. Vanilla starting electricity
   still permits earlier visits. Disc alternatives include the transformed
   Negative Disc and account for simultaneously occupied sockets.
+- Sea valve areas (West, East, Lower and the Depths) also require the Rebreather.
+  Vanilla gives it at Map140 event10 before any valve, and each bubble refills
+  about half as much air without it (CE97/99). The entrance pickups do not need it.
 - Transfer rows alone cannot prove access. Page priority, jumps, exit commands,
   internal barriers, and switch writers must also be reviewed. Game database
   map names do not reliably describe their contents.

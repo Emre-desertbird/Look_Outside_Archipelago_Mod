@@ -156,9 +156,9 @@ class AccessTests(unittest.TestCase):
         self.assertIn("Security Storage", GRAPH.reachable({**inventory, "Uranus Disc": 1, "Void Disc": 1})[0])
 
     def test_sea_route_uses_only_the_four_playable_valve_locks(self):
-        access = {"Padlock Key": 1}
-        self.assertIn("map137_event006", GRAPH.reachable(access)[1])
-        self.assertIn("map140_event010", GRAPH.reachable(access)[1])
+        self.assertIn("map137_event006", GRAPH.reachable({"Padlock Key": 1})[1])
+        self.assertIn("map140_event010", GRAPH.reachable({"Padlock Key": 1})[1])
+        access = {"Padlock Key": 1, "Rebreather": 1}
         for valve, check in (("Twilight Valve", "map136_event007"),
                              ("Midnight Valve", "map138_event006"),
                              ("Abyssal Valve", "map147_event008")):
@@ -307,6 +307,17 @@ class AccessTests(unittest.TestCase):
         self.assertNotIn("car_trunk_shotgun", GRAPH.reachable({"Electronic Key": 1})[1])
         self.assertIn("car_trunk_shotgun", GRAPH.reachable({**route, "Electronic Key": 1})[1])
 
+
+    def test_sea_valve_areas_need_the_rebreather(self):
+        everything = {entry["name"]: entry["quantity"] for entry in REGISTRY["items"]}
+        regions, _ = GRAPH.reachable(everything)
+        self.assertTrue({"Sea Apartment West", "Sea Apartment East", "Sea Apartment Lower",
+                         "Sea Apartment Depths"} <= regions)
+        without = dict(everything, Rebreather=0)
+        regions, _ = GRAPH.reachable(without)
+        self.assertIn("Sea Apartment Entrance", regions)
+        self.assertFalse({"Sea Apartment West", "Sea Apartment East", "Sea Apartment Lower",
+                          "Sea Apartment Depths"} & regions)
 
 if __name__ == "__main__":
     unittest.main()

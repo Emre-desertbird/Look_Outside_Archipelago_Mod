@@ -6,7 +6,7 @@ limits, not proposed requirements. Update it when the registry, routes, calendar
 events, native transformations, or item classifications change.
 
 The default randomized pool has **64 distinct progression item names and 81
-progression copies**. Every one has a row below, including the **ten without a
+progression copies**. Every one has a row below, including the **nine without a
 direct access predicate**. The other 192 copies are useful/filler. The solver's
 19 calendar events and separate Victory event are not randomized pool items.
 
@@ -127,9 +127,9 @@ late-input chain; its Day 14 reservation prevents that.
 
 | Progression item | AP copies | Actual logical use | Progression limitations |
 | --- | ---: | --- | --- |
-| `Twilight Valve` | 1 | Sea Apartment Entrance to Sea Apartment West. | Route dependent. One native consumed lock (Map125 event7); no additional Twilight copy is needed. Floor 2 reaches the sea entrance without a valve or Rebreather predicate. |
-| `Midnight Valve` | 1 | Sea Apartment Entrance to Sea Apartment East. | Route dependent. One playable consumed lock (Map140 event6). The disconnected old underwater map clusters are outside the AP graph/budget. |
-| `Abyssal Valve` | 1 | Sea Apartment Entrance to Sea Apartment Lower. | Route dependent. One consumed lock (Map125 event13) plus native local story progression. Does not replace Hadal Valve for the depths. |
+| `Twilight Valve` | 1 | Sea Apartment Entrance to Sea Apartment West, together with Rebreather. | Route dependent. One native consumed lock (Map125 event7); no additional Twilight copy is needed. Floor 2 reaches the sea entrance without a valve or Rebreather predicate. |
+| `Midnight Valve` | 1 | Sea Apartment Entrance to Sea Apartment East, together with Rebreather. | Route dependent. One playable consumed lock (Map140 event6). The disconnected old underwater map clusters are outside the AP graph/budget. |
+| `Abyssal Valve` | 1 | Sea Apartment Entrance to Sea Apartment Lower, together with Rebreather. | Route dependent. One consumed lock (Map125 event13) plus native local story progression. Does not replace Hadal Valve for the depths. |
 | `Hadal Valve` | 1 | Sea Apartment Lower to Sea Apartment Depths, including Lethargy. | Route dependent. Requires the Abyssal route first; one consumed lock (Map152 event1). Oxygen management and combat are left to the player. |
 | `Iris Key` | 7 | Six receipts for any reviewed entrance to Flesh Central or Flesh Outer. | Route dependent. Six keys cover all six spends, including the optional Eye interaction; the seventh is surplus. Eye/garage entrances reach the central network, reception/deep-sea entrances the outer network. One-way doors keep these components distinct. Flesh Home does not grant all deeper checks. Actual entrances can be opened one key at a time. |
 
@@ -224,6 +224,12 @@ All seven rows are **route dependent**.
 | `white key` | 1 | One required white lock spend in the full budget. | Does not provide any other color; full-budget entrance is intentionally conservative. |
 | `Black Keys (2)` | 1 | One receipt provides both black lock spends. | Delivers two native black keys, for independent Map440 event7 and Map445 event2 locks. Opening one does not open the other. The bundle waits until both objects fit. |
 
+## Oxygen — 1 item type
+
+| Progression item | AP copies | Actual logical use | Progression limitations |
+| --- | ---: | --- | --- |
+| `Rebreather` | 1 | Required with each valve for Sea Apartment West, East and Lower (and so the Depths). | Vanilla hands it out at Map140 event10, before every valve door; without it each air bubble gives about half the oxygen (CE97/99). The entrance pickups on Maps137/140 stay reachable without it. Oxygen management itself is still the player's. |
+
 ## Virtual access items — 3 item types
 
 | Progression item | AP copies | Actual logical use | Progression limitations |
@@ -232,7 +238,7 @@ All seven rows are **route dependent**.
 | `Planetarium Door Access` | 1 | Planetarium to Planetarium Telescope Room. | Route dependent. Sets switch 699 permanently. Does not require solving the astrolabe after receipt; the astrolabe **check** independently requires power and all nine Sun-through-Neptune discs. Parent access still requires Jasper's Key/Floor 1. |
 | `Power Restored` | 1 | Powered elevator/disc routes, Astronomers, Apartment 20 Late, and astrolabe check. | Route dependent; no fixed outage day. Native starting electricity and outage run normally. Early receipt waits for actual loss, then restores with explicit feedback. Logic requires permanent restoration even when native starting power could suffice. Receipt neither checks the fuse box nor grants Elevator Access/discs. Basement/fuse-box access has a nonpowered route. |
 
-## Progression-classified items with no direct rule — 10 item types
+## Progression-classified items with no direct rule — 9 item types
 
 Each item below still contributes to the 64-name/81-copy progression pool and
 cannot be placed in the nine excluded locations. None directly gates a current
@@ -251,17 +257,16 @@ from its classification or the word "Key" in its name.
 | `Vending Machine Key` | 1 | Retained native vending-machine key from Mutt's registered resolution. | No modeled vending-machine check or supply guarantee. Local supplies remain the assumed vanilla economy. Resolving Mutt and receiving this item are independent. |
 | `Laundry` | 1 | Native Jeanne hand-in, including its local money reward. | No direct rule. Apartment 20 Early pickups precede hand-in; the later apartment transformation instead requires the stairwell/power/disc route. Laundry delivery does not logically open Apartment 22. No schedule protection for the hand-in itself. |
 | `Small Red Key` | 1 | Native red padlock at Map345 event30. | No modeled AP check behind that padlock. It is separate from Planetarium Door Access, the telescope-room check, and the Unlabeled Game's red key. No guaranteed date for this native route. |
-| `Rebreather` | 1 | Extends native time before drowning (CE97/99 and sea transitions). | No oxygen/capability predicate. Sea checks are considered reachable without it once routes/valves are satisfied. The player handles oxygen management; the progression flag does not guarantee receipt before underwater exploration. |
 
 ## Maintenance and remaining verification
 
-The table groups contain **7 + 8 + 5 + 11 + 9 + 4 + 7 + 3 + 10 = 64** item types.
+The table groups contain **7 + 8 + 5 + 11 + 9 + 4 + 7 + 1 + 3 + 9 = 64** item types.
 Extra copies are nine additional Simple Key bundles, six additional Iris Keys,
 and two additional yellow keys: **64 + 9 + 6 + 2 = 81** progression receipts.
 
 For changes, compare every registry `classification: progression` name with the
 rows above and inspect item atoms in entrances, checks, and calendar actions.
-Keep the ten no-direct-rule rows explicit until implementation changes justify
+Keep the nine no-direct-rule rows explicit until implementation changes justify
 moving or reclassifying them. Original source locations are not automatic
 dependencies of the corresponding received item.
 
@@ -275,6 +280,6 @@ Still outstanding: a complete randomized Normal run, visitor-order variation
 (including Monty/Xaria and Juicebox), repeated Shadow encounters, and travel or
 interaction time around intraday cutoffs. Juicebox's Day 15 reservation keeps its
 check out of pre-deadline input chains but does not prove every visitor schedule.
-The ten progression flags without direct predicates also do not promise access
+The nine progression flags without direct predicates also do not promise access
 to every native side activity or optional ending. These limits must remain
 visible when describing seed solvability.
