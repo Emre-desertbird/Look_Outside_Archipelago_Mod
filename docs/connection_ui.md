@@ -32,12 +32,17 @@ Large batches show three names and the number of additional items. The latest
 received items are listed on the Items tab with sender and location, for the
 current game session. While the log overlay is on, it replaces this notice.
 
+The map overlay has four compact rows: an analog clock with the day and time
+(and *(held)* at the 4 a.m. stop) plus a connection dot; a check progress bar
+with the server's count; the single most urgent deadline, only when one closes
+within two days or is at risk; and the latest log lines (0, 3, 6 or 10; default
+3). It refreshes at most four times a second.
+
 The Log tab and overlay show the server's messages (item sends, hints, goals,
 chat) with names from the room's data package, plus local lines for connecting,
 offline checks, Supply Cache contents and companion upgrades. Other players'
 item sends stay in the Log tab. The overlay is a small transparent box on the
-left or right edge of the game area, showing the last 3, 6 or 10 lines; older
-lines fade. It is pointer-transparent, hidden during dialogue, menus and battles,
+left or right edge of the game area; older log lines fade. It is pointer-transparent, hidden during dialogue, menus and battles,
 and switched in Settings or the game's Options (*Archipelago Log*, saved in the
 game config). Nothing it shows changes checks, items or game time. Replayed packets and inventory-full queues do not announce an item
 until it has actually been delivered. Power Restored retains its dedicated

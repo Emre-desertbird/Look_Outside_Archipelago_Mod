@@ -2242,9 +2242,9 @@ test("pasted /connect lines connect, and the overlay switch is a saved game opti
     const options = new Window_Options();
     options.addGeneralOptions();
     assert.deepEqual(options.commands, ["alwaysDash", "loaHud"]);
-    assert.deepEqual(ConfigManager.makeData(), { alwaysDash: false, loaHud: true, loaHudRight: false, loaHudLines: 6 });
+    assert.deepEqual(ConfigManager.makeData(), { alwaysDash: false, loaHud: true, loaHudRight: false, loaHudLines: 3 });
     ConfigManager.applyData({ loaHud: false, loaHudRight: true, loaHudLines: 99 });
-    assert.deepEqual([ConfigManager.loaHud, ConfigManager.loaHudRight, ConfigManager.loaHudLines], [false, true, 6]);
+    assert.deepEqual([ConfigManager.loaHud, ConfigManager.loaHudRight, ConfigManager.loaHudLines], [false, true, 3]);
     ConfigManager.applyData({});
     assert.equal(ConfigManager.loaHud, true, "older config files default to showing the overlay");
 });

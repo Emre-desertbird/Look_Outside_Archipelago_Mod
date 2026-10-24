@@ -219,6 +219,11 @@ module.exports = async function nativeMenuProbe(slotData) {
         const hud = document.querySelector("#loa-ap-hud");
         assert.equal(hud.style.display, "block");
         assert.match(hud.textContent, /Received Baseball Bat/);
+        // Status rows: clock/day, check progress and the nearest deadline.
+        assert.match(hud.textContent, /^Day \d+ · \d\d:\d\d/);
+        assert.match(hud.textContent, /\d+ \/ \d+ checks/);
+        assert.match(hud.textContent, /Original teeth apartment · (closes Day 4, 12:00|may already be missed)/);
+        assert.ok(hud.querySelector("svg"), "Analog clock drawn");
         assert.notEqual(hud.style.right, "", "Right-side setting applied");
         assert.equal(hud.style.pointerEvents, "none");
         scene._commandWindow.callHandler("loaArchipelago");

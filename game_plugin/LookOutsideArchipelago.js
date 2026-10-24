@@ -14,6 +14,8 @@
     const pluginName = "LookOutsideArchipelago";
     const auditedBuild = Object.freeze({ gameId: 51778622, versionId: 74642914 });
     const developmentRegistryVersion = 74;
+    // Mod release; matches apworld/lookoutside/archipelago.json world_version.
+    const pluginVersion = "0.0.4";
     if (globalThis.LookOutsideArchipelago) {
         throw new Error(`${pluginName} loaded more than once`);
     }
@@ -9065,7 +9067,7 @@
     if (configManager?.makeData && configManager?.applyData) {
         configManager.loaHud = true;
         configManager.loaHudRight = false;
-        configManager.loaHudLines = 6;
+        configManager.loaHudLines = 3;
         const originalMakeData = configManager.makeData;
         configManager.makeData = function() {
             const config = originalMakeData.apply(this, arguments);
@@ -9079,7 +9081,7 @@
             originalApplyData.apply(this, arguments);
             this.loaHud = config?.loaHud !== false;
             this.loaHudRight = config?.loaHudRight === true;
-            this.loaHudLines = [3, 6, 10].includes(config?.loaHudLines) ? config.loaHudLines : 6;
+            this.loaHudLines = [0, 3, 6, 10].includes(config?.loaHudLines) ? config.loaHudLines : 3;
         };
     }
     const optionsWindow = globalThis.Window_Options?.prototype;
@@ -9096,35 +9098,93 @@
             !globalThis.$gameMessage?.isBusy?.();
     }
 
+    // A small analog clock: hour and minute hands, tinted for day or night.
+    function clockSvg(hour, minute) {
+        const night = hour < 6 || hour >= 20;
+        const hand = (angle, length, width) => {
+            const radians = (angle - 90) * Math.PI / 180;
+            return `<line x1="15" y1="15" x2="${(15 + length * Math.cos(radians)).toFixed(2)}" ` +
+                `y2="${(15 + length * Math.sin(radians)).toFixed(2)}" stroke="#f4eee2" stroke-width="${width}" stroke-linecap="round"/>`;
+        };
+        const ticks = Array.from({ length: 12 }, (_, index) => {
+            const radians = index * Math.PI / 6;
+            const inner = index % 3 ? 11.5 : 10.5;
+            return `<line x1="${(15 + inner * Math.sin(radians)).toFixed(2)}" y1="${(15 - inner * Math.cos(radians)).toFixed(2)}" ` +
+                `x2="${(15 + 13 * Math.sin(radians)).toFixed(2)}" y2="${(15 - 13 * Math.cos(radians)).toFixed(2)}" ` +
+                `stroke="#f4eee288" stroke-width="${index % 3 ? 0.8 : 1.4}"/>`;
+        }).join("");
+        return `<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" style="flex:none">` +
+            `<circle cx="15" cy="15" r="14" fill="${night ? "#1d2747" : "#5b4626"}" stroke="${night ? "#8fb2ff" : "#f1cc82"}" stroke-width="1.4"/>` +
+            ticks + hand((hour % 12) * 30 + minute / 2, 7, 2.2) + hand(minute * 6, 10.5, 1.3) +
+            `<circle cx="15" cy="15" r="1.6" fill="#f4eee2"/></svg>`;
+    }
+
+    // The single most urgent deadline: at risk, or closing within two days.
+    function nearestDeadline(day) {
+        const candidates = [
+            ...questDeadlines().map(entry => ({ name: entry.group, day: entry.day, hour: 0, atRisk: entry.atRisk })),
+            // One row per pickup group (e.g. the original teeth apartment), not per pickup.
+            ...[...new Map(remainingDeadlines().map(entry => [entry.group, entry])).values()].map(entry =>
+                ({ name: entry.group, day: entry.day, hour: entry.hour, atRisk: entry.atRisk })),
+        ].filter(entry => entry.atRisk || entry.day <= day + 2);
+        candidates.sort((a, b) => Number(b.atRisk) - Number(a.atRisk) || a.day - b.day || a.hour - b.hour);
+        return candidates[0] || null;
+    }
+
+    let hudCheckedAt = 0;
     function updateHud() {
         if (!hudVisible()) {
             if (hudElement) hudElement.style.display = "none";
             return;
         }
-        const lines = apLog.filter(entry => overlayKinds.has(entry.kind)).slice(-(configManager?.loaHudLines || 6));
+        // Status values change slowly; refresh four times a second at most.
         const now = Date.now();
-        // Recent lines stay bright; older ones fade back so the map stays readable.
-        const html = lines.map(entry => `<div style="opacity:${now - entry.time < 20000 ? 1 : 0.55}">` +
-            `${partsHtml(entry.parts)}</div>`).join("");
+        if (hudElement?.style.display === "block" && now - hudCheckedAt < 250) return;
+        hudCheckedAt = now;
+        const variables = globalThis.$gameVariables;
+        const day = variables?.value(15) ?? 0;
+        const hour = variables?.value(16) ?? 0;
+        const minute = variables?.value(17) ?? 0;
+        const snapshot = statusSnapshot();
+        const deadline = nearestDeadline(day);
+        const lineCount = configManager?.loaHudLines ?? 3;
+        const lines = lineCount ? apLog.filter(entry => overlayKinds.has(entry.kind)).slice(-lineCount) : [];
+        const dot = { connected: "#7fe0a6", connecting: "#f1cc82", error: "#ffb9ad" }[snapshot.state] || "#a9a397";
+        const percent = snapshot.total ? Math.min(100, 100 * snapshot.checked / snapshot.total) : 0;
+        const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+        const html =
+            `<div style="display:flex;align-items:center;gap:8px">${clockSvg(hour, minute)}` +
+            `<div style="flex:1"><div style="font-size:13px;font-weight:600">Day ${day} · ${time}` +
+            `${dayHold ? ' <span style="color:#f1cc82;font-weight:400">(held)</span>' : ""}</div>` +
+            `<div style="margin-top:3px;height:4px;background:#ffffff22;border-radius:2px;overflow:hidden">` +
+            `<div style="width:${percent.toFixed(1)}%;height:100%;background:linear-gradient(90deg,#8a6a33,#d9b978)"></div></div>` +
+            `<div style="font-size:11px;color:#c9c2b3;margin-top:2px">${snapshot.checked} / ${snapshot.total} checks` +
+            `${snapshot.unsynced ? ` · ${snapshot.unsynced} to send` : ""}</div></div>` +
+            `<span title="${escapeHtml(snapshot.state)}" style="width:8px;height:8px;border-radius:50%;background:${dot};align-self:flex-start;margin-top:4px"></span></div>` +
+            (deadline ? `<div style="margin-top:5px;font-size:11.5px;color:${deadline.atRisk ? "#ffb9ad" : "#f1cc82"}">⚠ ` +
+                `${escapeHtml(deadline.name)} · <span style="white-space:nowrap">${deadline.atRisk ? "may already be missed" :
+                    deadline.hour ? `closes Day ${deadline.day}, ${deadline.hour}:00` : `closes Day ${deadline.day}`}</span></div>` : "") +
+            (lines.length ? `<div style="margin-top:5px;padding-top:4px;border-top:1px solid #ffffff1f">` +
+                lines.map(entry => `<div style="opacity:${now - entry.time < 20000 ? 1 : 0.55}">${partsHtml(entry.parts)}</div>`).join("") +
+                `</div>` : "");
         const canvas = globalThis.Graphics?._canvas?.getBoundingClientRect?.();
         const right = configManager?.loaHudRight === true;
-        const signature = `${html}|${right}|${canvas?.left}|${canvas?.top}|${canvas?.width}`;
         if (!hudElement) {
             hudElement = document.createElement("div");
             hudElement.id = "loa-ap-hud";
             hudElement.setAttribute("aria-hidden", "true");
             document.body.append(hudElement);
         }
-        hudElement.style.display = lines.length ? "block" : "none";
+        const signature = `${html}|${right}|${canvas?.left}|${canvas?.top}|${canvas?.width}`;
+        hudElement.style.display = "block";
         if (signature === hudSignature) return;
         hudSignature = signature;
         const edge = Math.max(8, (right ? (globalThis.innerWidth - (canvas?.right ?? globalThis.innerWidth))
             : (canvas?.left ?? 0)) + 8);
         hudElement.style.cssText = `position:fixed;${right ? "right" : "left"}:${edge}px;` +
-            `top:${Math.max(8, (canvas?.top ?? 0) + 8)}px;max-width:${Math.min(340, (canvas?.width ?? 816) * 0.42)}px;` +
-            "padding:6px 9px;border-radius:5px;background:#0b0c10a8;color:#eee8db;" +
-            "font:12px/1.35 sans-serif;text-shadow:0 1px 2px #000;pointer-events:none;z-index:15;" +
-            `display:${lines.length ? "block" : "none"}`;
+            `top:${Math.max(8, (canvas?.top ?? 0) + 8)}px;width:${Math.min(250, (canvas?.width ?? 816) * 0.34)}px;` +
+            "box-sizing:border-box;padding:7px 9px;border-radius:7px;background:#0b0c10b0;color:#eee8db;" +
+            "font:12px/1.35 sans-serif;text-shadow:0 1px 2px #000;pointer-events:none;z-index:15;display:block";
         hudElement.innerHTML = html;
     }
 
@@ -9417,14 +9477,16 @@
                  <label><input type="checkbox" class="loa-hud-toggle">Show the log overlay on the map</label>
                  <label>Overlay side<select class="loa-hud-side"><option value="left">Left</option>
                    <option value="right">Right</option></select></label>
-                 <label>Overlay lines<select class="loa-hud-lines"><option>3</option><option>6</option>
-                   <option>10</option></select></label>
-                 <p class="loa-muted">The overlay can also be switched in the game's Options as "Archipelago Log".
-                 It hides during dialogue, menus and battles.</p></div>
+                 <label>Log lines in the overlay<select class="loa-hud-lines"><option value="0">0 (status only)</option>
+                   <option>3</option><option>6</option><option>10</option></select></label>
+                 <p class="loa-muted">The overlay shows the clock and day, your check progress, the most urgent
+                 deadline (only when one is close) and the latest log lines. It can also be switched in the game's
+                 Options as "Archipelago Log", and hides during dialogue, menus and battles.</p></div>
                <p class="loa-error" role="alert"></p>`) +
             `<div class="loa-actions"><button type="submit"></button>
              <button type="button" class="loa-disconnect">Disconnect</button>
-             <button type="button" class="loa-close">Close</button></div></form>`;
+             <button type="button" class="loa-close">Close</button>
+             <span class="loa-muted" style="margin-left:auto;align-self:center">v${pluginVersion}</span></div></form>`;
         const select = value => dialog.querySelector(value);
         const error = select(".loa-error");
         const submit = select("button[type=submit]");
@@ -9508,7 +9570,7 @@
             const hudLines = select(".loa-hud-lines");
             hudToggle.checked = configManager?.loaHud !== false;
             hudSide.value = configManager?.loaHudRight ? "right" : "left";
-            hudLines.value = String(configManager?.loaHudLines || 6);
+            hudLines.value = String(configManager?.loaHudLines ?? 3);
             const saveHudSettings = () => {
                 if (!configManager) return;
                 configManager.loaHud = hudToggle.checked;
@@ -10912,7 +10974,7 @@
     }
 
     globalThis.LookOutsideArchipelago = Object.freeze({
-        version: "0.0.0-dev",
+        version: pluginVersion,
         booted: true,
         get active() { return active; },
         get saveError() { return saveError; },

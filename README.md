@@ -17,11 +17,29 @@ send checks; the items at those locations can belong to you or to another player
 **This is a development playtest build.** New AP sessions require `LOA_DEV_MODE=1`;
 the launchers and commands below set it for you.
 
+## What the mod changes in Look Outside
+
+The original mod by wyldek turns Look Outside into an Archipelago game. In short:
+
+| Change | What it means in play |
+| --- | --- |
+| **273 checks** | Reviewed pickups, keys, quest rewards, guaranteed boss/enemy drops and collectibles send a check instead of giving their usual item. [Details](#what-becomes-an-ap-check-or-item) |
+| **Shuffled items** | Those items, including keys, discs, sea valves and quest objects such as the Rose and the Phone, are shuffled across your world and other players' worlds and delivered when found. |
+| **Virtual unlocks** | **Elevator Access**, **Planetarium Door Access** and **Power Restored** arrive as items instead of being earned in place. [Electricity](#electricity) |
+| **Logic that respects the calendar** | Generation knows routes, key budgets and audited quest deadlines (Rose by Day 5, Phone by Day 10, crossword by Day 14), so every seed is completable. [How it works](#how-progression-logic-works) |
+| **Quest choices still count** | Refusing, fighting or befriending a quest giver resolves its whole reward group, so alternate outcomes never lose checks. [Resolutions](#quest-choices-and-shared-resolutions) |
+| **Day hold** | Time stops at 4 a.m.; you choose when to start the next day with **Go to Next Day**, so another player can send you something first. |
+| **Any ending wins** | Any real ending completes your goal and releases your remaining checks. The Day 15 home door is always available as a fallback. [Winning](#winning-missed-checks-and-release) |
+| **Safe saves** | A save is bound to its seed and slot; checks found offline are sent when you reconnect, and repeated packets never duplicate items. |
+
+Everything else stays vanilla: combat, shops, crafting, recruitment, quest dates
+and story events. See [What stays vanilla](#what-stays-vanilla).
+
 ## What this fork adds
 
 | Addition | Summary |
 | --- | --- |
-| [Archipelago window and log overlay](#playing-the-archipelago-window-and-overlay) | One **Archipelago** menu entry (Connect and Status merged) with Overview, Log, Items, Locations, Deadlines and Settings tabs, plus an optional transparent log overlay on the map. |
+| [Archipelago window and overlay](#playing-the-archipelago-window-and-overlay) | One **Archipelago** menu entry (Connect and Status merged) with Overview, Log, Items, Locations, Deadlines and Settings tabs, plus a small map overlay with a clock, the day, your check progress, the nearest deadline and recent messages. |
 | [Quest deadline warnings](#days-and-chronological-safety) | Status and Go to Next Day warn about Charan's Rose and cave, Leigh's Phone quest and the crossword book, with the missing item and progress. |
 | [Optional activity checks](#optional-activity-checks) | `activity_checks`: cooking your first and third meal and crafting your first item. Filler only; you keep the food and item. |
 | [Optional companion upgrades](#optional-companion-upgrades) | `companion_upgrades`: one passive per recruitable companion (17) plus a filler-only check when each first joins. |
@@ -34,7 +52,7 @@ checks as the original mod.
 
 ## Quick start
 
-1. **Get the package.** Download [LookOutsideAP-0.0.3-dev74.zip](releases/LookOutsideAP-0.0.3-dev74.zip)
+1. **Get the package.** Download [LookOutsideAP-0.0.4-dev74.zip](releases/LookOutsideAP-0.0.4-dev74.zip)
    and follow [Install the extracted package](#install-the-extracted-package). It
    builds a **separate modded copy** of the game; your Steam installation stays vanilla.
 2. **Add the world.** Put `lookoutside.apworld` into Archipelago's `custom_worlds`
@@ -83,7 +101,7 @@ before your first run.
 | Game | Windows Look Outside, game ID `51778622`, build `74642914` |
 | Difficulty | **Survivor Mode** (Normal); Explorer Mode and Cursed Mode cannot activate this APWorld |
 | Archipelago | Minimum client version `0.6.7`; tested with Archipelago `0.6.7` and `0.6.8` |
-| Registry / save format | Registry **74**, AP save schema **7**, APWorld `0.0.3` |
+| Registry / save format | Registry **74**, AP save schema **7**, mod version `0.0.4` (APWorld and plugin) |
 | Generation logic | `chronological_access_v1` |
 | Randomized pool | **273 locations and items** by default; 276 with `activity_checks`, 290 with `companion_upgrades`, 293 with both |
 | Item classification | Default pool: 81 progression, 122 useful, 70 filler **copies** |
@@ -398,16 +416,24 @@ bar and these tabs:
 | **Deadlines** | The audited time limits and what each still needs. |
 | **Settings** | The log overlay: on/off, left or right side, 3, 6 or 10 lines. |
 
-The **log overlay** is a small transparent box in the corner of the game area with
-the latest messages: items found and sent, Supply Cache contents, upgrades and
-checks made offline. Older lines fade. It hides during dialogue, menus and battles,
-lets clicks through, and can also be switched in the game's **Options** as
-*Archipelago Log*. Other players' item sends appear only in the Log tab.
+The **overlay** is a small transparent box in a corner of the game area:
+
+| Row | Shows |
+| --- | --- |
+| Clock | An analog clock (warm by day, blue at night), **Day 3 · 10:30**, *(held)* at the 4 a.m. stop, and a connection dot. |
+| Progress | A thin bar and **42 / 293 checks**, plus how many are still waiting to be sent while offline. |
+| Deadline | Only when one is close (within two days) or at risk: the single most urgent one, e.g. **⚠ Charan's Rose · closes Day 6**. |
+| Log | The latest 3 messages by default (0, 3, 6 or 10 in Settings): items found and sent, Supply Cache contents, upgrades, offline checks. Older lines fade. |
+
+It hides during dialogue, menus and battles, lets clicks through, and can be
+switched off in Settings or the game's **Options** as *Archipelago Log*. Other
+players' item sends appear only in the Log tab. The window footer shows the mod
+version.
 
 ## Setup guide
 
 For installation from a ZIP, download
-[LookOutsideAP-0.0.3-dev74.zip](releases/LookOutsideAP-0.0.3-dev74.zip) from the
+[LookOutsideAP-0.0.4-dev74.zip](releases/LookOutsideAP-0.0.4-dev74.zip) from the
 repository's **`releases/` folder** and follow
 [Install the extracted package](#install-the-extracted-package). It includes the
 built APWorld and everything needed to prepare the game-side mod files; a source

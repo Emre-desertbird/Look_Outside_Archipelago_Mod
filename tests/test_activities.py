@@ -88,5 +88,12 @@ class CompanionTests(unittest.TestCase):
             self.assertIn(f'{row["item"]["ap_id"]}: Object.freeze({{"kind": "upgrade", "id": {row["actor_id"]}', plugin)
 
 
+
+class VersionTests(unittest.TestCase):
+    def test_plugin_and_apworld_versions_match(self):
+        manifest = json.loads((ROOT / "apworld/lookoutside/archipelago.json").read_text(encoding="utf-8"))
+        plugin = (ROOT / "game_plugin/LookOutsideArchipelago.js").read_text(encoding="utf-8")
+        self.assertIn(f'const pluginVersion = "{manifest["world_version"]}";', plugin)
+
 if __name__ == "__main__":
     unittest.main()
