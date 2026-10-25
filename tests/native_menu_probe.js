@@ -224,6 +224,13 @@ module.exports = async function nativeMenuProbe(slotData) {
         assert.match(hud.textContent, /\d+ \/ \d+ checks/);
         assert.match(hud.textContent, /Original teeth apartment · (closes Day 4, 12:00|may already be missed)/);
         assert.ok(hud.querySelector("svg"), "Analog clock drawn");
+        // The tracker sits on the opposite side with the current room's checks.
+        const tracker = document.querySelector("#loa-ap-tracker");
+        assert.equal(tracker.style.display, "block");
+        assert.notEqual(tracker.style.left, "", "Tracker opposite a right-side status box");
+        assert.match(tracker.textContent, /^THIS ROOM/);
+        assert.match(tracker.textContent, /\d of 3 checks left|All 3 checks found/);
+        assert.doesNotMatch(tracker.textContent, /Charan's Rose|Crossword/, "Unstarted optional quests stay hidden");
         assert.notEqual(hud.style.right, "", "Right-side setting applied");
         assert.equal(hud.style.pointerEvents, "none");
         scene._commandWindow.callHandler("loaArchipelago");

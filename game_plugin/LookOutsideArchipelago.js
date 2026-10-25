@@ -15,7 +15,7 @@
     const auditedBuild = Object.freeze({ gameId: 51778622, versionId: 74642914 });
     const developmentRegistryVersion = 74;
     // Mod release; matches apworld/lookoutside/archipelago.json world_version.
-    const pluginVersion = "0.0.4";
+    const pluginVersion = "0.0.5";
     if (globalThis.LookOutsideArchipelago) {
         throw new Error(`${pluginName} loaded more than once`);
     }
@@ -8731,6 +8731,9 @@
         hudElement?.remove();
         hudElement = null;
         hudSignature = "";
+        trackerElement?.remove();
+        trackerElement = null;
+        trackerSignature = "";
         resetBattleTracking();
         connectionGeneration++;
         cancelReconnect();
@@ -9068,12 +9071,14 @@
         configManager.loaHud = true;
         configManager.loaHudRight = false;
         configManager.loaHudLines = 3;
+        configManager.loaTracker = true;
         const originalMakeData = configManager.makeData;
         configManager.makeData = function() {
             const config = originalMakeData.apply(this, arguments);
             config.loaHud = this.loaHud;
             config.loaHudRight = this.loaHudRight;
             config.loaHudLines = this.loaHudLines;
+            config.loaTracker = this.loaTracker;
             return config;
         };
         const originalApplyData = configManager.applyData;
@@ -9082,6 +9087,7 @@
             this.loaHud = config?.loaHud !== false;
             this.loaHudRight = config?.loaHudRight === true;
             this.loaHudLines = [0, 3, 6, 10].includes(config?.loaHudLines) ? config.loaHudLines : 3;
+            this.loaTracker = config?.loaTracker !== false;
         };
     }
     const optionsWindow = globalThis.Window_Options?.prototype;
@@ -9090,12 +9096,103 @@
         optionsWindow.addGeneralOptions = function() {
             originalAddGeneralOptions.apply(this, arguments);
             this.addCommand("Archipelago Log", "loaHud");
+            this.addCommand("Archipelago Tracker", "loaTracker");
         };
     }
 
+    function overlayAllowed() {
+        return active && !menuDialog && !!globalThis.document?.createElement && !globalThis.$gameMessage?.isBusy?.();
+    }
+
     function hudVisible() {
-        return active && configManager?.loaHud !== false && !menuDialog && !!globalThis.document?.createElement &&
-            !globalThis.$gameMessage?.isBusy?.();
+        return overlayAllowed() && configManager?.loaHud !== false;
+    }
+
+    function trackerVisible() {
+        return overlayAllowed() && configManager?.loaTracker !== false;
+    }
+
+    // Registry checks with a pickup or event in a given room (map). Battle-only
+    // and common-event checks have no room and count only in the progress bar.
+    const roomLocationKeys = new Map();
+    for (const source of sourceSignatures) {
+        if (source.troopId !== undefined || source.commonEventId !== undefined || source.mapId === undefined) continue;
+        if (!roomLocationKeys.has(source.mapId)) roomLocationKeys.set(source.mapId, new Set());
+        roomLocationKeys.get(source.mapId).add(source.key);
+    }
+
+    function roomChecks(mapId) {
+        const keys = [...(roomLocationKeys.get(mapId) || [])];
+        const names = dataPackage[slotInfo[identity?.slot]?.game]?.locations;
+        const named = keys.map(key => ({ key, checked: checkedKeys.has(key),
+            name: names?.get(developmentLocationIds[key]) || null }));
+        // Full AP names ("Apartment 36 - Baseball Bat"); one room can mix areas and quests.
+        return { total: named.length, left: named.filter(entry => !entry.checked).length,
+            missing: named.filter(entry => !entry.checked).map(entry => entry.name).filter(Boolean) };
+    }
+
+    function trackerHtml() {
+        const heading = text => `<div style="font-size:10px;letter-spacing:.08em;color:#a9a397;margin:6px 0 2px">${text}</div>`;
+        const mapId = globalThis.$gameMap?.mapId?.() ?? 0;
+        const room = roomChecks(mapId);
+        const place = globalThis.$gameMap?.displayName?.();
+        let html = heading(`THIS ROOM${place ? ` · ${escapeHtml(place.toUpperCase())}` : ""}`).replace("margin:6px", "margin:0");
+        const item = name => `<div style="color:#c9c2b3;padding-left:8px;white-space:nowrap;overflow:hidden;` +
+            `text-overflow:ellipsis">· ${escapeHtml(name)}</div>`;
+        if (!room.total) {
+            html += `<div style="color:#a9a397">No checks here</div>`;
+        } else if (!room.left) {
+            html += `<div style="color:#7fe0a6">All ${room.total} checks found ✓</div>`;
+        } else {
+            html += `<div><b style="color:#f1cc82">${room.left}</b> of ${room.total} check${room.total === 1 ? "" : "s"} left</div>` +
+                room.missing.slice(0, 3).map(item).join("") +
+                (room.missing.length > 3 ? `<div style="color:#a9a397;padding-left:8px">+ ${room.missing.length - 3} more</div>` : "");
+        }
+        const quests = questDeadlines().filter(entry => entry.started);
+        if (quests.length) {
+            html += heading("QUESTS") + quests.map(entry =>
+                `<div><span style="color:${entry.atRisk ? "#ffb9ad" : "#eee8db"}">${escapeHtml(entry.group)}</span>` +
+                ` <span style="color:#c9c2b3">· ${escapeHtml(entry.atRisk ? "may already be missed" : entry.short)}</span></div>`).join("");
+        }
+        if (pendingItems.length) {
+            html += heading("WAITING") + `<div style="color:#f1cc82">${pendingItems.length} item${pendingItems.length === 1 ? "" : "s"} ` +
+                "need bag space</div>";
+        }
+        return html;
+    }
+
+    let trackerElement = null;
+    let trackerSignature = "";
+    function placeOverlay(element, right) {
+        const canvas = globalThis.Graphics?._canvas?.getBoundingClientRect?.();
+        const edge = Math.max(8, (right ? (globalThis.innerWidth - (canvas?.right ?? globalThis.innerWidth))
+            : (canvas?.left ?? 0)) + 8);
+        // The game's menu button sits in the top-right corner; stay below it there.
+        const top = Math.max(8, (canvas?.top ?? 0) + (right ? 72 : 8));
+        return `position:fixed;${right ? "right" : "left"}:${edge}px;top:${top}px;` +
+            `width:${Math.min(250, (canvas?.width ?? 816) * 0.34)}px;box-sizing:border-box;padding:7px 9px;` +
+            "border-radius:7px;background:#0b0c10b0;color:#eee8db;font:12px/1.35 sans-serif;" +
+            "text-shadow:0 1px 2px #000;pointer-events:none;z-index:15;display:block";
+    }
+
+    function updateTracker(right) {
+        if (!trackerVisible()) {
+            if (trackerElement) trackerElement.style.display = "none";
+            return;
+        }
+        if (!trackerElement) {
+            trackerElement = document.createElement("div");
+            trackerElement.id = "loa-ap-tracker";
+            trackerElement.setAttribute("aria-hidden", "true");
+            document.body.append(trackerElement);
+        }
+        const html = trackerHtml();
+        const style = placeOverlay(trackerElement, right);
+        trackerElement.style.display = "block";
+        if (`${html}|${style}` === trackerSignature) return;
+        trackerSignature = `${html}|${style}`;
+        trackerElement.style.cssText = style;
+        trackerElement.innerHTML = html;
     }
 
     // A small analog clock: hour and minute hands, tinted for day or night.
@@ -9122,7 +9219,9 @@
     // The single most urgent deadline: at risk, or closing within two days.
     function nearestDeadline(day) {
         const candidates = [
-            ...questDeadlines().map(entry => ({ name: entry.group, day: entry.day, hour: 0, atRisk: entry.atRisk })),
+            // Optional timed quests only count once started; the Deadlines tab lists them all.
+            ...questDeadlines().filter(entry => entry.started)
+                .map(entry => ({ name: entry.group, day: entry.day, hour: 0, atRisk: entry.atRisk })),
             // One row per pickup group (e.g. the original teeth apartment), not per pickup.
             ...[...new Map(remainingDeadlines().map(entry => [entry.group, entry])).values()].map(entry =>
                 ({ name: entry.group, day: entry.day, hour: entry.hour, atRisk: entry.atRisk })),
@@ -9133,14 +9232,18 @@
 
     let hudCheckedAt = 0;
     function updateHud() {
-        if (!hudVisible()) {
-            if (hudElement) hudElement.style.display = "none";
-            return;
-        }
+        const statusShown = hudVisible();
+        if (!statusShown && hudElement) hudElement.style.display = "none";
+        if (!trackerVisible() && trackerElement) trackerElement.style.display = "none";
+        if (!statusShown && !trackerVisible()) return;
         // Status values change slowly; refresh four times a second at most.
         const now = Date.now();
-        if (hudElement?.style.display === "block" && now - hudCheckedAt < 250) return;
+        const shown = el => el?.style.display === "block";
+        if ((shown(hudElement) || !statusShown) && (shown(trackerElement) || !trackerVisible()) &&
+            now - hudCheckedAt < 250) return;
         hudCheckedAt = now;
+        updateTracker(configManager?.loaHudRight !== true);
+        if (!statusShown) return;
         const variables = globalThis.$gameVariables;
         const day = variables?.value(15) ?? 0;
         const hour = variables?.value(16) ?? 0;
@@ -9167,7 +9270,6 @@
             (lines.length ? `<div style="margin-top:5px;padding-top:4px;border-top:1px solid #ffffff1f">` +
                 lines.map(entry => `<div style="opacity:${now - entry.time < 20000 ? 1 : 0.55}">${partsHtml(entry.parts)}</div>`).join("") +
                 `</div>` : "");
-        const canvas = globalThis.Graphics?._canvas?.getBoundingClientRect?.();
         const right = configManager?.loaHudRight === true;
         if (!hudElement) {
             hudElement = document.createElement("div");
@@ -9175,16 +9277,11 @@
             hudElement.setAttribute("aria-hidden", "true");
             document.body.append(hudElement);
         }
-        const signature = `${html}|${right}|${canvas?.left}|${canvas?.top}|${canvas?.width}`;
+        const style = placeOverlay(hudElement, right);
         hudElement.style.display = "block";
-        if (signature === hudSignature) return;
-        hudSignature = signature;
-        const edge = Math.max(8, (right ? (globalThis.innerWidth - (canvas?.right ?? globalThis.innerWidth))
-            : (canvas?.left ?? 0)) + 8);
-        hudElement.style.cssText = `position:fixed;${right ? "right" : "left"}:${edge}px;` +
-            `top:${Math.max(8, (canvas?.top ?? 0) + 8)}px;width:${Math.min(250, (canvas?.width ?? 816) * 0.34)}px;` +
-            "box-sizing:border-box;padding:7px 9px;border-radius:7px;background:#0b0c10b0;color:#eee8db;" +
-            "font:12px/1.35 sans-serif;text-shadow:0 1px 2px #000;pointer-events:none;z-index:15;display:block";
+        if (`${html}|${style}` === hudSignature) return;
+        hudSignature = `${html}|${style}`;
+        hudElement.style.cssText = style;
         hudElement.innerHTML = html;
     }
 
@@ -9256,12 +9353,13 @@
         if (!switchOn(680) && unchecked(charanKeys)) {
             warnings.push({ group: "Charan's Rose", day: 6, warnFrom: 4, checks: unchecked(charanKeys),
                 atRisk: day >= 6 || switchOn(1097),
+                short: holds(360) === false ? "find the Rose, give it by Day 5" : "give the Rose by Day 5", started: false,
                 text: "Give Charan the Rose in the basement pit by the end of Day 5. His cave opens " +
                     "the next day; the earthquake closes the basement on Day 7." +
                     (holds(360) === false ? "\nYou do not have the Rose yet." : "") });
         } else if (switchOn(680) && unchecked(["map401_event007_quest_item"])) {
             warnings.push({ group: "Charan's Cave", day: 7, warnFrom: 0, checks: 1,
-                atRisk: day >= 7 || switchOn(1097),
+                atRisk: day >= 7 || switchOn(1097), short: "visit his cave by Day 6", started: true,
                 text: "Follow Charan into his cave the day after giving him the Rose. " +
                     "The earthquake closes the basement on Day 7." });
         }
@@ -9269,6 +9367,8 @@
         if (unchecked(["leighs_call_ring"]) && leighStage === 0) {
             warnings.push({ group: "Leigh's Phone", day: 11, warnFrom: 8, checks: 1,
                 atRisk: day >= 11,
+                short: holds(389) === false ? "find the Phone, bring it home by Day 10" : "bring the Phone home by Day 10",
+                started: false,
                 text: "Come home carrying the Phone by Day 10 so it can charge. The quest then " +
                     "needs four more new days and ends on Day 15." +
                     (holds(389) === false ? "\nYou do not have the Phone yet." : "") });
@@ -9283,14 +9383,18 @@
                 ? `${daysNeeded} more new day${daysNeeded === 1 ? "" : "s"} needed; talk to Leigh at home before Day 15.`
                 : "Talk to Leigh at home about her phone before Day 15.");
             warnings.push({ group: "Leigh's Phone", day: 15, warnFrom: Math.max(0, 14 - daysNeeded), checks: 1,
-                atRisk: day + daysNeeded > 14, text: steps.join("\n") });
+                atRisk: day + daysNeeded > 14, text: steps.join("\n"),
+                short: leighStage % 2 === 0 && leighStage < 9 ? "read the new phone message"
+                    : daysNeeded ? `${daysNeeded} more new day${daysNeeded === 1 ? "" : "s"}` : "talk to Leigh at home",
+                started: true });
         }
         const wilhelminaKeys = ["wilhelmina_reward_sword", "wilhelmina_reward_spear",
             "wilhelmina_reward_hammer", "wilhelmina_reward_gun", "wilhelmina_reward_book"];
         const puzzles = variable(491);
         if (unchecked(wilhelminaKeys) === wilhelminaKeys.length && puzzles < 100) {
             warnings.push({ group: "Crossword book", day: 15, warnFrom: 11, checks: wilhelminaKeys.length,
-                atRisk: day >= 15,
+                atRisk: day >= 15, short: switchOn(237) ? `${puzzles} / 100 puzzles` : "pick up the book",
+                started: puzzles > 0,
                 text: `Finish all 100 crosswords at home before Day 15 (${puzzles} / 100 done). ` +
                     "It takes many in-game hours; the code in the book leads to Wilhelmina." +
                     (switchOn(237) ? "" : "\nYou have not picked up the crossword book yet.") });
@@ -9474,14 +9578,17 @@
                  <p class="loa-muted">Tracked deadlines; vanilla quest dates not listed here still apply.</p>
                  <div class="loa-deadline-text"></div></div>
                <div class="loa-panel" data-panel="settings" role="tabpanel" hidden>
-                 <label><input type="checkbox" class="loa-hud-toggle">Show the log overlay on the map</label>
+                 <label><input type="checkbox" class="loa-hud-toggle">Show the status overlay on the map</label>
+                 <label><input type="checkbox" class="loa-tracker-toggle">Show the tracker (room checks, quests)</label>
                  <label>Overlay side<select class="loa-hud-side"><option value="left">Left</option>
                    <option value="right">Right</option></select></label>
                  <label>Log lines in the overlay<select class="loa-hud-lines"><option value="0">0 (status only)</option>
                    <option>3</option><option>6</option><option>10</option></select></label>
-                 <p class="loa-muted">The overlay shows the clock and day, your check progress, the most urgent
-                 deadline (only when one is close) and the latest log lines. It can also be switched in the game's
-                 Options as "Archipelago Log", and hides during dialogue, menus and battles.</p></div>
+                 <p class="loa-muted">The status overlay shows the clock and day, your check progress, the most urgent
+                 deadline (only when one is close) and the latest log lines. The tracker, on the other side, shows the
+                 checks left in the current room, open timed quests and items waiting for bag space. Both can also be
+                 switched in the game's Options ("Archipelago Log", "Archipelago Tracker") and hide during dialogue,
+                 menus and battles.</p></div>
                <p class="loa-error" role="alert"></p>`) +
             `<div class="loa-actions"><button type="submit"></button>
              <button type="button" class="loa-disconnect">Disconnect</button>
@@ -9568,7 +9675,9 @@
             const hudToggle = select(".loa-hud-toggle");
             const hudSide = select(".loa-hud-side");
             const hudLines = select(".loa-hud-lines");
+            const trackerToggle = select(".loa-tracker-toggle");
             hudToggle.checked = configManager?.loaHud !== false;
+            trackerToggle.checked = configManager?.loaTracker !== false;
             hudSide.value = configManager?.loaHudRight ? "right" : "left";
             hudLines.value = String(configManager?.loaHudLines ?? 3);
             const saveHudSettings = () => {
@@ -9576,9 +9685,10 @@
                 configManager.loaHud = hudToggle.checked;
                 configManager.loaHudRight = hudSide.value === "right";
                 configManager.loaHudLines = Number(hudLines.value);
+                configManager.loaTracker = trackerToggle.checked;
                 try { configManager.save?.(); } catch (_) { /* Settings still apply this session. */ }
             };
-            for (const control of [hudToggle, hudSide, hudLines]) control.addEventListener("change", saveHudSettings);
+            for (const control of [hudToggle, hudSide, hudLines, trackerToggle]) control.addEventListener("change", saveHudSettings);
         }
         const renderOverview = snapshot => {
             const pill = select(".loa-pill");
@@ -10866,6 +10976,7 @@
             receiptToast?.remove();
             receiptToast = null;
             if (hudElement) hudElement.style.display = "none";
+            if (trackerElement) trackerElement.style.display = "none";
             return originalMapTerminate?.apply(this, arguments);
         };
     }
@@ -11038,6 +11149,7 @@
         get dayHold() { return dayHold; },
         remainingDeadlines() { return remainingDeadlines(); },
         questDeadlines() { return questDeadlines(); },
+        roomChecks(mapId) { return roomChecks(mapId); },
         deadlineSummary(advance = false) { return deadlineSummary(advance); },
         powerState() { return { ...powerState, notices: powerState.notices.slice() }; },
         updatePowerForDevelopment() {

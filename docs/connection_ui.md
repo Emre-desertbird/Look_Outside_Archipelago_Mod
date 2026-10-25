@@ -38,6 +38,13 @@ with the server's count; the single most urgent deadline, only when one closes
 within two days or is at risk; and the latest log lines (0, 3, 6 or 10; default
 3). It refreshes at most four times a second.
 
+The tracker sits on the opposite side, below the game's menu button. It shows the
+checks left in the current map (registry sources with a map; battle and common-event
+checks have no room), up to three of their names once the data package is known,
+timed quests the player has started (Charan's cave after the Rose is given, Leigh's
+Phone once charging, the crossword after the first puzzle), and items waiting for bag
+space. It has its own switch (*Archipelago Tracker* in Options, saved in the config).
+
 The Log tab and overlay show the server's messages (item sends, hints, goals,
 chat) with names from the room's data package, plus local lines for connecting,
 offline checks, Supply Cache contents and companion upgrades. Other players'

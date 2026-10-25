@@ -1808,6 +1808,9 @@ test("quest deadline warnings follow Charan, Leigh and crossword native state", 
         // Early days list everything in Status but do not nag on Next Day.
         assert.doesNotMatch(plugin.deadlineSummary(true), /Charan|Leigh|Crossword/);
         assert.match(plugin.deadlineSummary(false), /Charan's Rose: 2 unchecked, closes on Day 6/);
+        assert.deepEqual(plugin.questDeadlines().map(entry => [entry.group, entry.started]),
+            [["Charan's Rose", false], ["Leigh's Phone", false], ["Crossword book", false]]);
+        assert.equal(quest("Charan's Rose").short, "find the Rose, give it by Day 5");
 
         held.add(360);
         currentDay = 5;
@@ -1828,6 +1831,8 @@ test("quest deadline warnings follow Charan, Leigh and crossword native state", 
         assert.equal(quest("Leigh's Phone").day, 11);
         variableValues.set(900, 1);
         assert.match(quest("Leigh's Phone").text, /4 more new days/);
+        assert.equal(quest("Leigh's Phone").started, true);
+        assert.equal(quest("Leigh's Phone").short, "4 more new days");
         assert.match(quest("Leigh's Phone").text, /fourth message only arrives once Leigh lives with you/);
         assert.equal(quest("Leigh's Phone").atRisk, false);
         currentDay = 11;
@@ -1844,6 +1849,7 @@ test("quest deadline warnings follow Charan, Leigh and crossword native state", 
         variableValues.set(491, 42);
         currentDay = 12;
         assert.match(plugin.deadlineSummary(true), /42 \/ 100 done/);
+        assert.deepEqual([quest("Crossword book").started, quest("Crossword book").short], [true, "42 / 100 puzzles"]);
         assert.doesNotMatch(quest("Crossword book").text, /not picked up/);
         variableValues.set(491, 100);
         assert.equal(quest("Crossword book"), undefined);
@@ -2241,10 +2247,28 @@ test("pasted /connect lines connect, and the overlay switch is a saved game opti
 
     const options = new Window_Options();
     options.addGeneralOptions();
-    assert.deepEqual(options.commands, ["alwaysDash", "loaHud"]);
-    assert.deepEqual(ConfigManager.makeData(), { alwaysDash: false, loaHud: true, loaHudRight: false, loaHudLines: 3 });
+    assert.deepEqual(options.commands, ["alwaysDash", "loaHud", "loaTracker"]);
+    assert.deepEqual(ConfigManager.makeData(), { alwaysDash: false, loaHud: true, loaHudRight: false, loaHudLines: 3,
+        loaTracker: true });
     ConfigManager.applyData({ loaHud: false, loaHudRight: true, loaHudLines: 99 });
     assert.deepEqual([ConfigManager.loaHud, ConfigManager.loaHudRight, ConfigManager.loaHudLines], [false, true, 3]);
     ConfigManager.applyData({});
     assert.equal(ConfigManager.loaHud, true, "older config files default to showing the overlay");
+});
+
+test("room tracker counts the checks placed in a map and which are left", () => {
+    DataManager.setupNewGame();
+    plugin.bindIdentityForDevelopment("room-seed", 0, 1);
+    plugin.activateForDevelopment();
+    const home = plugin.roomChecks(3);
+    assert.equal(home.total, 3, "two Screamatorium shelves share one check, plus the roach crown and sash");
+    assert.equal(home.left, 3);
+    assert.equal(plugin.roomChecks(99999).total, 0);
+    currentEvent = { _eventId: 41, _pageIndex: 0 };
+    const bat = plugin.roomChecks(23);
+    assert.ok(bat.total >= 1);
+    new FakeInterpreter(23, 41, 0, 7, 127, [15, 0, 0, 1, false]).command127([15, 0, 0, 1, false]);
+    assert.equal(plugin.roomChecks(23).left, bat.left - 1);
+    plugin.deactivate();
+    DataManager.setupNewGame();
 });

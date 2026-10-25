@@ -39,7 +39,7 @@ and story events. See [What stays vanilla](#what-stays-vanilla).
 
 | Addition | Summary |
 | --- | --- |
-| [Archipelago window and overlay](#playing-the-archipelago-window-and-overlay) | One **Archipelago** menu entry (Connect and Status merged) with Overview, Log, Items, Locations, Deadlines and Settings tabs, plus a small map overlay with a clock, the day, your check progress, the nearest deadline and recent messages. |
+| [Archipelago window and overlay](#playing-the-archipelago-window-and-overlay) | One **Archipelago** menu entry (Connect and Status merged) with Overview, Log, Items, Locations, Deadlines and Settings tabs, plus a small map overlay with a clock, the day, your check progress, the nearest deadline and recent messages, and a tracker with the checks left in the current room and your started timed quests. |
 | [Quest deadline warnings](#days-and-chronological-safety) | Status and Go to Next Day warn about Charan's Rose and cave, Leigh's Phone quest and the crossword book, with the missing item and progress. |
 | [Optional activity checks](#optional-activity-checks) | `activity_checks`: cooking your first and third meal and crafting your first item. Filler only; you keep the food and item. |
 | [Optional companion upgrades](#optional-companion-upgrades) | `companion_upgrades`: one passive per recruitable companion (17) plus a filler-only check when each first joins. |
@@ -52,7 +52,7 @@ checks as the original mod.
 
 ## Quick start
 
-1. **Get the package.** Download [LookOutsideAP-0.0.4-dev74.zip](releases/LookOutsideAP-0.0.4-dev74.zip)
+1. **Get the package.** Download [LookOutsideAP-0.0.5-dev74.zip](releases/LookOutsideAP-0.0.5-dev74.zip)
    and follow [Install the extracted package](#install-the-extracted-package). It
    builds a **separate modded copy** of the game; your Steam installation stays vanilla.
 2. **Add the world.** Put `lookoutside.apworld` into Archipelago's `custom_worlds`
@@ -101,7 +101,7 @@ before your first run.
 | Game | Windows Look Outside, game ID `51778622`, build `74642914` |
 | Difficulty | **Survivor Mode** (Normal); Explorer Mode and Cursed Mode cannot activate this APWorld |
 | Archipelago | Minimum client version `0.6.7`; tested with Archipelago `0.6.7` and `0.6.8` |
-| Registry / save format | Registry **74**, AP save schema **7**, mod version `0.0.4` (APWorld and plugin) |
+| Registry / save format | Registry **74**, AP save schema **7**, mod version `0.0.5` (APWorld and plugin) |
 | Generation logic | `chronological_access_v1` |
 | Randomized pool | **273 locations and items** by default; 276 with `activity_checks`, 290 with `companion_upgrades`, 293 with both |
 | Item classification | Default pool: 81 progression, 122 useful, 70 filler **copies** |
@@ -422,18 +422,26 @@ The **overlay** is a small transparent box in a corner of the game area:
 | --- | --- |
 | Clock | An analog clock (warm by day, blue at night), **Day 3 · 10:30**, *(held)* at the 4 a.m. stop, and a connection dot. |
 | Progress | A thin bar and **42 / 293 checks**, plus how many are still waiting to be sent while offline. |
-| Deadline | Only when one is close (within two days) or at risk: the single most urgent one, e.g. **⚠ Charan's Rose · closes Day 6**. |
+| Deadline | Only when one is close (within two days) or at risk: the single most urgent one, e.g. **⚠ Original teeth apartment · closes Day 4, 12:00**. Optional timed quests count only once you have started them. |
 | Log | The latest 3 messages by default (0, 3, 6 or 10 in Settings): items found and sent, Supply Cache contents, upgrades, offline checks. Older lines fade. |
 
-It hides during dialogue, menus and battles, lets clicks through, and can be
-switched off in Settings or the game's **Options** as *Archipelago Log*. Other
-players' item sends appear only in the Log tab. The window footer shows the mod
-version.
+The **tracker** sits on the opposite side, below the game's menu button:
+
+| Section | Shows |
+| --- | --- |
+| This room | How many checks in the room you are standing in are still left, with up to three of their names; "All found ✓" when done. Checks earned only in battles or common events have no room and count only in the progress bar. |
+| Quests | Timed quests you have **started**, with progress: Leigh's Phone (new days or the next step), Charan's cave after giving him the Rose, the crossword once you have solved a puzzle. Unstarted optional quests stay hidden; the Deadlines tab lists them all. |
+| Waiting | Only when received items need bag space. |
+
+Both panels hide during dialogue, menus and battles, let clicks through, and can be
+switched off in Settings or the game's **Options** (*Archipelago Log*,
+*Archipelago Tracker*). Other players' item sends appear only in the Log tab. The
+window footer shows the mod version.
 
 ## Setup guide
 
 For installation from a ZIP, download
-[LookOutsideAP-0.0.4-dev74.zip](releases/LookOutsideAP-0.0.4-dev74.zip) from the
+[LookOutsideAP-0.0.5-dev74.zip](releases/LookOutsideAP-0.0.5-dev74.zip) from the
 repository's **`releases/` folder** and follow
 [Install the extracted package](#install-the-extracted-package). It includes the
 built APWorld and everything needed to prepare the game-side mod files; a source
