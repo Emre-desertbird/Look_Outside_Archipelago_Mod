@@ -1,12 +1,12 @@
 # Development packages
 
-Download [LookOutsideAP-0.0.5-dev74.zip](LookOutsideAP-0.0.5-dev74.zip), extract it
+Download [LookOutsideAP-0.0.6-dev74.zip](LookOutsideAP-0.0.6-dev74.zip), extract it
 into a writable folder, and follow the included `README.md`.
 
 This is a **development playtest build** of this fork, for Survivor Mode (Normal
 difficulty) and audited game build `74642914`. It adds the Archipelago window,
-map overlay and room/quest tracker, deadline warnings, the optional `activity_checks` and
-`companion_upgrades` options, Supply Cache filler and the Rebreather logic rule to
+map overlay and room/quest tracker, an item chime, DeathLink, Universal Tracker support, deadline warnings, the optional `activity_checks`,
+`companion_upgrades` and `daily_life_checks` options, Supply Cache filler and the Rebreather logic rule to
 registry 74. [LookOutsideAP-0.0.2-dev74.zip](LookOutsideAP-0.0.2-dev74.zip) is the
 original mod's last package; keep it to finish seeds generated with it.
 A complete randomized Normal playthrough remains a release requirement.

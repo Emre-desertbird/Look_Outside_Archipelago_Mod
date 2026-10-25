@@ -5,3 +5,7 @@ Look Outside:
   activity_checks: false
   # Optional companion upgrade items plus filler-only "joins the party" checks.
   companion_upgrades: false
+  # Optional first shower / sleep / videogame checks that only hold filler.
+  daily_life_checks: false
+  # Share Game Overs with the room; a received death takes one random party member.
+  death_link: false

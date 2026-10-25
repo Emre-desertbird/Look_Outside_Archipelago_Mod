@@ -31,7 +31,9 @@ def verify(path):
     graph.validate(registry)
     definitions = {row["name"]: row for row in registry["items"] + companion_items + [supply_cache]}
     # Optional activity checks are excluded (filler only) and gated by regions alone.
-    activity_rows = {row["name"]: {**row, "missable": True} for row in activities["locations"]}
+    daily_life = json.loads((PROJECT / "apworld/lookoutside/daily_life.json").read_text(encoding="utf-8"))
+    activity_rows = {row["name"]: {**row, "missable": True, "group": "activity"} for row in activities["locations"]}
+    activity_rows |= {row["name"]: {**row, "missable": True, "group": "daily"} for row in daily_life["locations"]}
     locations = {row["name"]: row for row in registry["locations"]} | activity_rows | companion_rows
     with ZipFile(path) as archive:
         spoiler = next(name for name in archive.namelist() if name.endswith("_Spoiler.txt"))
@@ -73,22 +75,33 @@ def verify(path):
                 break
     activity_keys = {row["key"]: row for row in activity_rows.values()}
     companion_keys = {row["key"]: row for row in companion_rows.values()}
-    enabled = {owner for owner, key in placements if key in activity_keys}
+    groups = {}
+    for owner, key in placements:
+        if key in activity_keys:
+            groups.setdefault(owner, set()).add(activity_keys[key]["group"])
+    enabled = set(groups)
     companion_players = {owner for owner, key in placements if key in companion_keys}
-    for player in enabled:
-        if sum(owner == player and key in activity_keys for owner, key in placements) != len(activity_keys):
-            raise ValueError(f"Partial activity checks for {player}")
+    group_size = {name: sum(row["group"] == name for row in activity_keys.values()) for name in ("activity", "daily")}
+    for player, names in groups.items():
+        for name in names:
+            found = sum(owner == player and key in activity_keys and activity_keys[key]["group"] == name
+                        for owner, key in placements)
+            if found != group_size[name]:
+                raise ValueError(f"Partial {name} checks for {player}")
     for player in companion_players:
         if sum(owner == player and key in companion_keys for owner, key in placements) != len(companion_keys):
             raise ValueError(f"Partial companion checks for {player}")
-    total = (len(registry["locations"]) * len(players) + len(activity_keys) * len(enabled) +
+    total = (len(registry["locations"]) * len(players) +
+             sum(group_size[name] for names in groups.values() for name in names) +
              len(companion_keys) * len(companion_players))
     if len(placements) != total:
         raise ValueError(f"Expected {total} placements, got {len(placements)}")
     expected = Counter({(player, row["name"]): row["quantity"]
                         for player in players for row in registry["items"]})
-    expected.update({(player, row["name"]): row["quantity"]
-                     for player in enabled for row in activities["items"]})
+    for player, names in groups.items():
+        for name in names:
+            for row in (activities if name == "activity" else daily_life)["items"]:
+                expected[(player, row["name"])] += row["quantity"]
     expected.update({(player, row["name"]): 1 for player in companion_players for row in companion_items})
     if Counter(placements.values()) != expected:
         raise ValueError("Generated item quantities differ from the registry")
@@ -100,7 +113,9 @@ def verify(path):
             reachable |= {(player, key) for key in checks}
             if player in enabled:
                 reachable |= {(player, key) for key, row in activity_keys.items()
-                              if row["region"] in regions and row.get("requires_region", row["region"]) in regions}
+                              if row["group"] in groups[player] and row["region"] in regions and
+                              row.get("requires_region", row["region"]) in regions and
+                              inventory[player][row.get("requires_item")] >= (1 if "requires_item" in row else 0)}
             if player in companion_players:
                 reachable |= {(player, key) for key in companion_keys if "Apartment 33" in regions}
         sphere = sorted(reachable - checked)
@@ -119,7 +134,8 @@ def verify(path):
     return {"archive": str(path), "players": len(players), "checked": len(checked), "sphere_sizes": spheres,
             "generation_events_per_player": len(graph.events),
             "excluded_locations": len(players) * sum(bool(row.get("missable")) for row in registry["locations"]) +
-                                  len(enabled) * len(activity_keys) + len(companion_players) * len(companion_keys),
+                                  sum(group_size[name] for names in groups.values() for name in names) +
+                                  len(companion_players) * len(companion_keys),
             "activity_players": len(enabled),
             "companion_players": len(companion_players),
             "cross_player_items": sum(owner != recipient for (owner, _), (recipient, _) in placements.items()),

@@ -128,7 +128,9 @@ class FakeGameActor {
     addState(id) { if (!this.states.includes(id)) this.states.push(id); }
     removeState(id) { this.states = this.states.filter(state => state !== id); }
     isStateAffected(id) { return this.states.includes(id); }
-    isAlive() { return true; }
+    isAlive() { return !this.states.includes(1); }
+    deathStateId() { return 1; }
+    name() { return `Actor ${this._actorId}`; }
     maxLevel() { return 20; }
     changeLevel(level) { this.level = level; }
 }
@@ -142,6 +144,11 @@ class FakeOptionsWindow {
     addCommand(name, symbol) { this.commands.push(symbol); }
 }
 globalThis.Window_Options = FakeOptionsWindow;
+// Game Over scene and scene switching for DeathLink.
+const sceneChanges = [];
+class FakeGameoverScene { start() { this.started = true; } }
+globalThis.Scene_Gameover = FakeGameoverScene;
+globalThis.SceneManager = { goto(scene) { sceneChanges.push(scene); } };
 require("../game_plugin/LookOutsideArchipelago.js");
 const plugin = globalThis.LookOutsideArchipelago;
 const sliceSlotData = {
@@ -156,6 +163,7 @@ test("development protocol IDs agree with the shared vertical-slice registry", (
     const registry = require("../apworld/lookoutside/vertical_slice.json");
     const activities = require("../apworld/lookoutside/activities.json");
     const companions = require("../apworld/lookoutside/companions.json");
+    const dailyLife = require("../apworld/lookoutside/daily_life.json");
     const data = plugin.developmentData();
     assert.deepEqual(data.sources, registry.locations.flatMap(location =>
         [location, ...(location.source_variants || [])].map(source => ({
@@ -184,6 +192,8 @@ test("development protocol IDs agree with the shared vertical-slice registry", (
             .concat([[540500001, { kind: "cache", id: 1, name: "Supply Cache" }]])));
     assert.deepEqual(plugin.companionState().companions.map(entry => [entry.key, entry.apId, entry.actorId]),
         companions.companions.map(row => [row.location.key, row.location.ap_id, row.actor_id]));
+    assert.deepEqual(plugin.dailyLifeState().locations.map(entry => [entry.key, entry.apId, entry.trigger]),
+        dailyLife.locations.map(location => [location.key, location.ap_id, location.trigger]));
     assert.deepEqual(plugin.activityState().locations.map(entry => [entry.key, entry.apId]),
         activities.locations.map(location => [location.key, location.ap_id]));
 });
@@ -342,6 +352,7 @@ test("checks survive save/load and are not reported twice", () => {
         mealsCooked: 0,
         companionChecks: false,
         ownedUpgrades: [],
+        dailyLifeChecks: false,
         pendingDayRollover: false,
         dayHold: false,
         powerState: { received: false, outageSeen: false, outageInProgress: false,
@@ -2247,9 +2258,9 @@ test("pasted /connect lines connect, and the overlay switch is a saved game opti
 
     const options = new Window_Options();
     options.addGeneralOptions();
-    assert.deepEqual(options.commands, ["alwaysDash", "loaHud", "loaTracker"]);
+    assert.deepEqual(options.commands, ["alwaysDash", "loaHud", "loaTracker", "loaSound"]);
     assert.deepEqual(ConfigManager.makeData(), { alwaysDash: false, loaHud: true, loaHudRight: false, loaHudLines: 3,
-        loaTracker: true });
+        loaTracker: true, loaSound: true });
     ConfigManager.applyData({ loaHud: false, loaHudRight: true, loaHudLines: 99 });
     assert.deepEqual([ConfigManager.loaHud, ConfigManager.loaHudRight, ConfigManager.loaHudLines], [false, true, 3]);
     ConfigManager.applyData({});
@@ -2270,5 +2281,244 @@ test("room tracker counts the checks placed in a map and which are left", () => 
     new FakeInterpreter(23, 41, 0, 7, 127, [15, 0, 0, 1, false]).command127([15, 0, 0, 1, false]);
     assert.equal(plugin.roomChecks(23).left, bat.left - 1);
     plugin.deactivate();
+    DataManager.setupNewGame();
+});
+
+test("daily-life checks follow the game's first shower, sleep and videogame, gated by slot data", () => {
+    class DailySocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; DailySocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    const oldMap = globalThis.$dataMap;
+    const oldCommon9 = $dataCommonEvents[9];
+    const blank = length => Array.from({ length }, () => ({ code: 0, parameters: [] }));
+    const showerList = blank(19);
+    showerList[18] = { code: 121, parameters: [602, 602, 0] };
+    const sleepList = blank(86);
+    sleepList[85] = { code: 121, parameters: [603, 603, 0] };
+    $dataCommonEvents[9] = { list: sleepList };
+    const shower = () => {
+        globalThis.$dataMap = { events: { 6: { pages: [{ list: showerList }] } } };
+        const context = new FakeInterpreter(4, 6, 0, 18, 121, [602, 602, 0]);
+        context._list = showerList;
+        return Game_Interpreter.prototype.command121.call(context, [602, 602, 0]);
+    };
+    const sleep = () => {
+        const context = new FakeInterpreter(0, 0, 0, 85, 121, [603, 603, 0]);
+        context._list = sleepList;
+        return Game_Interpreter.prototype.command121.call(context, [603, 603, 0]);
+    };
+    const connect = enabled => {
+        plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Daily", password: "", uuid: "daily-uuid",
+            WebSocketClass: DailySocket, autoReconnect: false });
+        const socket = DailySocket.instances.at(-1);
+        socket.server({ cmd: "RoomInfo", seed_name: "daily-seed" });
+        socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [],
+            slot_data: { ...sliceSlotData, daily_life_checks: enabled, daily_life_version: 1 } });
+        return socket;
+    };
+    const dailyKeys = () => plugin.checkedKeys().filter(key => key.startsWith("daily_"));
+    try {
+        DataManager.setupNewGame();
+        let socket = connect(false);
+        assert.equal(shower(), true);
+        assert.equal(switchValues.get(602), true, "native switch still set");
+        assert.deepEqual(dailyKeys(), []);
+        socket.close();
+
+        DataManager.setupNewGame();
+        socket = connect(true);
+        assert.equal(plugin.dailyLifeState().enabled, true);
+        shower();
+        assert.deepEqual(socket.sent.at(-1), { cmd: "LocationChecks", locations: [593000201] });
+        shower();
+        assert.equal(socket.sent.filter(packet => packet.cmd === "LocationChecks").length, 1, "a second shower sends nothing");
+        socket.close();
+        sleep();
+        assert.deepEqual(dailyKeys().sort(), ["daily_first_shower", "daily_first_sleep"]);
+        // A different event setting the same switch is not the shower.
+        const other = new FakeInterpreter(4, 7, 0, 18, 121, [602, 602, 0]);
+        other._list = showerList;
+        Game_Interpreter.prototype.command121.call(other, [602, 602, 0]);
+        assert.equal(dailyKeys().length, 2);
+
+        const save = DataManager.makeSaveContents();
+        assert.equal(save.lookOutsideArchipelago.dailyLifeChecks, true);
+        DataManager.setupNewGame();
+        DataManager.extractSaveContents(save);
+        assert.deepEqual(dailyKeys().sort(), ["daily_first_shower", "daily_first_sleep"]);
+        socket = connect(true);
+        assert.ok(socket.sent.some(packet => packet.cmd === "LocationChecks" &&
+            [593000201, 593000202].every(id => packet.locations.includes(id))), "offline checks replayed");
+        socket.close();
+        const forged = structuredClone(save);
+        forged.lookOutsideArchipelago.dailyLifeChecks = false;
+        assert.throws(() => DataManager.extractSaveContents(forged), /Unsupported Archipelago save state/);
+    } finally {
+        globalThis.$dataMap = oldMap;
+        $dataCommonEvents[9] = oldCommon9;
+        for (const id of [602, 603]) switchValues.delete(id);
+        DataManager.setupNewGame();
+    }
+});
+
+test("one chime plays per batch of delivered items and can be switched off", () => {
+    const played = [];
+    const oldAudio = globalThis.AudioManager;
+    const oldParty = globalThis.$gameParty;
+    const oldItems = globalThis.$dataItems;
+    globalThis.AudioManager = { playSe(se) { played.push(se.name); } };
+    const counts = new Map();
+    globalThis.$dataItems = { 4: { id: 4, name: "Medic-in-a-jar" } };
+    globalThis.$gameParty = {
+        numItems(item) { return counts.get(item.id) || 0; },
+        maxItems() { return 99; },
+        gainItem(item, amount) { counts.set(item.id, (counts.get(item.id) || 0) + amount); },
+    };
+    try {
+        DataManager.setupNewGame();
+        plugin.bindIdentityForDevelopment("sound-seed", 0, 1);
+        plugin.activateForDevelopment();
+        plugin.configureItemDefinitionsForDevelopment(plugin.developmentData().itemDefinitions);
+        plugin.queueReceivedItemsForDevelopment(0, [{ item: 540000004 }, { item: 540000004 }, { item: 540000004 }]);
+        plugin.deliverPendingForDevelopment();
+        assert.deepEqual(played, ["TwinkleChime"], "three items, one chime");
+        plugin.deliverPendingForDevelopment();
+        assert.equal(played.length, 1, "nothing delivered, no chime");
+        ConfigManager.loaSound = false;
+        plugin.queueReceivedItemsForDevelopment(3, [{ item: 540000004 }]);
+        plugin.deliverPendingForDevelopment();
+        assert.equal(played.length, 1, "sound switched off");
+    } finally {
+        ConfigManager.loaSound = true;
+        globalThis.AudioManager = oldAudio;
+        globalThis.$gameParty = oldParty;
+        globalThis.$dataItems = oldItems;
+        plugin.deactivate();
+        DataManager.setupNewGame();
+    }
+});
+
+test("DeathLink takes one random party member, ends the run on the last, and never echoes", () => {
+    class LinkSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; LinkSocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    const oldParty = globalThis.$gameParty;
+    const oldRandom = Math.random;
+    const connect = enabled => {
+        plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Emre", password: "", uuid: "link-uuid",
+            WebSocketClass: LinkSocket, autoReconnect: false });
+        const socket = LinkSocket.instances.at(-1);
+        socket.server({ cmd: "RoomInfo", seed_name: "link-seed" });
+        socket.server({ cmd: "Connected", team: 0, slot: 1, checked_locations: [],
+            slot_info: { 1: { name: "Emre", game: "Look Outside" } },
+            slot_data: { ...sliceSlotData, death_link: enabled } });
+        return socket;
+    };
+    const death = (socket, source, time = 5) => socket.server({ cmd: "Bounced", tags: ["DeathLink"],
+        data: { time, source, cause: `${source} fell` } });
+    const sam = new Game_Actor(1, 5);
+    const sophie = new Game_Actor(12, 3);
+    const rat = new Game_Actor(8, 3);
+    const bounces = socket => socket.sent.filter(packet => packet.cmd === "Bounce");
+    try {
+        // A seed without DeathLink ignores deaths entirely.
+        DataManager.setupNewGame();
+        let socket = connect(false);
+        assert.ok(!socket.sent.some(packet => packet.cmd === "ConnectUpdate"));
+        death(socket, "Linky");
+        assert.deepEqual(plugin.deathLinkState().pending, []);
+        socket.close();
+
+        DataManager.setupNewGame();
+        globalThis.$gameParty = { battleMembers: () => [sam, sophie, rat], inBattle: () => false };
+        socket = connect(true);
+        assert.deepEqual(socket.sent.find(packet => packet.cmd === "ConnectUpdate"), { cmd: "ConnectUpdate", tags: ["DeathLink"] });
+        death(socket, "Emre");
+        assert.deepEqual(plugin.deathLinkState().pending, [], "our own death echoing back is ignored");
+
+        // Exploring: one random living member falls, with a message.
+        messages.length = 0;
+        Math.random = () => 0.5;
+        death(socket, "Linky");
+        plugin.updateDeathLinkForDevelopment();
+        assert.deepEqual([sam, sophie, rat].map(actor => actor.isAlive()), [true, false, true]);
+        assert.match(messages.at(-1), /Linky died\. Actor 12 collapses\./);
+        assert.match(plugin.logEntries().at(-1).text, /Linky died \(Linky fell\) · Actor 12 collapses/);
+        assert.equal(plugin.deathLinkState().gameOverQueued, false);
+
+        // Fights: applied when the turn starts, and the log window shows it.
+        const logged = [];
+        BattleManager._logWindow = { push: (method, text) => logged.push(text) };
+        Math.random = () => 0;
+        death(socket, "Zelda", 6);
+        BattleManager.startTurn();
+        assert.equal(sam.isAlive(), false);
+        assert.deepEqual(logged, ["Zelda died. Actor 1 collapses."]);
+
+        // The last living member: message first, then the Game Over, and that
+        // Game Over is not shared back to the room.
+        death(socket, "Mario", 7);
+        plugin.updateDeathLinkForDevelopment();
+        assert.equal(rat.isAlive(), false);
+        assert.match(messages.at(-1), /Mario died\. Actor 8 falls, and no one is left\./);
+        assert.equal(plugin.deathLinkState().gameOverQueued, true);
+        sceneChanges.length = 0;
+        plugin.updateDeathLinkForDevelopment();
+        assert.deepEqual(sceneChanges, [Scene_Gameover]);
+        new Scene_Gameover().start();
+        assert.deepEqual(bounces(socket), [], "a death caused by DeathLink is not sent back");
+
+        // A real Game Over of our own is shared once.
+        for (const actor of [sam, sophie, rat]) actor.removeState(1);
+        new Scene_Gameover().start();
+        const [bounce] = bounces(socket);
+        assert.deepEqual(bounce.tags, ["DeathLink"]);
+        assert.equal(bounce.data.source, "Emre");
+        assert.match(bounce.data.cause, /Emre did not make it out in Look Outside/);
+        death(socket, "Emre", bounce.data.time);
+        assert.deepEqual(plugin.deathLinkState().pending, [], "the server's echo of our death is ignored");
+        socket.close();
+    } finally {
+        Math.random = oldRandom;
+        globalThis.$gameParty = oldParty;
+        delete BattleManager._logWindow;
+        DataManager.setupNewGame();
+    }
+});
+
+test("cancelling a waiting reconnect calls browser timers on the window, not the timer record", () => {
+    class DropSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 0; DropSocket.instances.push(this); }
+        send() {}
+        close() { this.readyState = 3; this.onclose?.(); }
+    }
+    // Browser timers throw "Illegal invocation" unless called on the window.
+    const strict = fn => function(...args) {
+        if (this !== globalThis) throw new TypeError("Illegal invocation");
+        return fn(...args);
+    };
+    const cleared = [];
+    const options = { url: "ws://localhost:38999", name: "Drop", password: "", uuid: "drop-uuid",
+        WebSocketClass: DropSocket, setTimeout: strict(() => 42), clearTimeout: strict(id => cleared.push(id)) };
+    DataManager.setupNewGame();
+    plugin.connectForDevelopment(options);
+    const socket = DropSocket.instances.at(-1);
+    socket.onerror();            // opening failed: a secure retry, then a scheduled plain retry
+    DropSocket.instances.at(-1).onerror?.();
+    DropSocket.instances.at(-1).close();
+    assert.equal(plugin.connectionState, "disconnected");
+    // Pressing Connect/Disconnect while that retry waits must not throw.
+    assert.doesNotThrow(() => plugin.connectForDevelopment({ ...options, autoReconnect: false }));
+    assert.deepEqual(cleared, [42]);
+    DropSocket.instances.at(-1).close();
     DataManager.setupNewGame();
 });

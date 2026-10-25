@@ -43,6 +43,10 @@ and story events. See [What stays vanilla](#what-stays-vanilla).
 | [Quest deadline warnings](#days-and-chronological-safety) | Status and Go to Next Day warn about Charan's Rose and cave, Leigh's Phone quest and the crossword book, with the missing item and progress. |
 | [Optional activity checks](#optional-activity-checks) | `activity_checks`: cooking your first and third meal and crafting your first item. Filler only; you keep the food and item. |
 | [Optional companion upgrades](#optional-companion-upgrades) | `companion_upgrades`: one passive per recruitable companion (17) plus a filler-only check when each first joins. |
+| [Optional daily-life checks](#optional-daily-life-checks) | `daily_life_checks`: your first shower, first night's sleep and first videogame. Filler only. |
+| [DeathLink](#deathlink) | `death_link`: a death in the room takes one random member of your party (Game Over if none remain); your own Game Overs are shared. |
+| [Universal Tracker](#universal-tracker) | The APWorld can be rebuilt from a room's slot data, so the Universal Tracker app can show your checks in logic. |
+| Item chime | A short chime when items arrive (switch in Settings or Options as *Archipelago Item Sound*). |
 | [Supply Cache](#optional-activity-checks) | Filler that grants three random consumables, replacing extra Mops. |
 | [Rebreather logic](#access-supplies-and-alternatives) | Sea valve areas now logically require the Rebreather, matching vanilla. |
 | Small fixes | Difficulty is named **Survivor Mode** as in the game, and a pasted `/connect host:port` line connects. |
@@ -52,7 +56,7 @@ checks as the original mod.
 
 ## Quick start
 
-1. **Get the package.** Download [LookOutsideAP-0.0.5-dev74.zip](releases/LookOutsideAP-0.0.5-dev74.zip)
+1. **Get the package.** Download [LookOutsideAP-0.0.6-dev74.zip](releases/LookOutsideAP-0.0.6-dev74.zip)
    and follow [Install the extracted package](#install-the-extracted-package). It
    builds a **separate modded copy** of the game; your Steam installation stays vanilla.
 2. **Add the world.** Put `lookoutside.apworld` into Archipelago's `custom_worlds`
@@ -65,6 +69,8 @@ checks as the original mod.
    Look Outside:
      activity_checks: false     # cooking/crafting checks (filler only)
      companion_upgrades: false  # companion passives + join checks (filler only)
+     daily_life_checks: false   # first shower/sleep/videogame checks (filler only)
+     death_link: false          # share deaths with the room
    ```
 
 4. **Generate and host.** Generate the seed with Archipelago, then host it on your
@@ -101,9 +107,9 @@ before your first run.
 | Game | Windows Look Outside, game ID `51778622`, build `74642914` |
 | Difficulty | **Survivor Mode** (Normal); Explorer Mode and Cursed Mode cannot activate this APWorld |
 | Archipelago | Minimum client version `0.6.7`; tested with Archipelago `0.6.7` and `0.6.8` |
-| Registry / save format | Registry **74**, AP save schema **7**, mod version `0.0.5` (APWorld and plugin) |
+| Registry / save format | Registry **74**, AP save schema **7**, mod version `0.0.6` (APWorld and plugin) |
 | Generation logic | `chronological_access_v1` |
-| Randomized pool | **273 locations and items** by default; 276 with `activity_checks`, 290 with `companion_upgrades`, 293 with both |
+| Randomized pool | **273 locations and items** by default; +3 with `activity_checks`, +17 with `companion_upgrades`, +3 with `daily_life_checks` (296 with all three) |
 | Item classification | Default pool: 81 progression, 122 useful, 70 filler **copies** |
 | Access graph | 74 regions, 81 entrances, a rule for every randomized location |
 | Quest handling | 35 shared resolution groups |
@@ -209,6 +215,39 @@ skill that applies the attacker's on-hit states, as the game's own attack does.
 Wretch, Jacob and Melt are not included: build 74642914 never adds them to the
 party. These locations use IDs
 `5940000xx`; upgrade items use `5404000xx`.
+
+### Optional daily-life checks
+
+Set `daily_life_checks: true` to add three checks for everyday moments at home:
+**Daily Life - First Shower**, **First Night's Sleep** and **First Videogame**. Each
+fires the first time you do it after connecting, using the game's own "first time"
+moments. You keep everything; the checks only ever hold filler, and each adds one
+Supply Cache to the pool. The videogame check needs power (you start with two
+games). These locations use IDs `5930002xx`.
+
+### DeathLink
+
+Set `death_link: true` to share deaths with everyone in the room who also has
+DeathLink on:
+
+- **When someone else dies**, one random living member of your active party falls,
+  with a message such as *"Linky died. Rat collapses."* If that was your last living
+  member, it is a **Game Over**. While exploring it waits until no cutscene or dialogue
+  is running; in a fight it applies as the next turn starts.
+- **When you get a Game Over**, your death is sent to the room.
+- **No ping-pong:** a Game Over caused by a received death is never sent back, and
+  your own death echoing back from the server is ignored.
+
+The Archipelago window says when DeathLink is on. Deaths are not saved; a death that
+arrives while you are offline is lost, as in other Archipelago games.
+
+### Universal Tracker
+
+The [Universal Tracker](https://github.com/FarisTheAncient/Archipelago/releases)
+client can show which of your checks are in logic. This APWorld supports it: UT
+rebuilds your world from the room's slot data, without your YAML. UT cannot see the
+in-game day, so day-locked checks may show as available early; the Deadlines tab
+stays the reference for those.
 
 ### Quest choices and shared resolutions
 
@@ -435,13 +474,14 @@ The **tracker** sits on the opposite side, below the game's menu button:
 
 Both panels hide during dialogue, menus and battles, let clicks through, and can be
 switched off in Settings or the game's **Options** (*Archipelago Log*,
-*Archipelago Tracker*). Other players' item sends appear only in the Log tab. The
+*Archipelago Tracker*). A short chime plays once per batch of items that reaches your
+inventory (*Archipelago Item Sound*). Other players' item sends appear only in the Log tab. The
 window footer shows the mod version.
 
 ## Setup guide
 
 For installation from a ZIP, download
-[LookOutsideAP-0.0.5-dev74.zip](releases/LookOutsideAP-0.0.5-dev74.zip) from the
+[LookOutsideAP-0.0.6-dev74.zip](releases/LookOutsideAP-0.0.6-dev74.zip) from the
 repository's **`releases/` folder** and follow
 [Install the extracted package](#install-the-extracted-package). It includes the
 built APWorld and everything needed to prepare the game-side mod files; a source
@@ -513,6 +553,10 @@ Look Outside:
   activity_checks: false
   # Optional companion upgrade items plus filler-only "joins the party" checks.
   companion_upgrades: false
+  # Optional first shower / sleep / videogame checks that only hold filler.
+  daily_life_checks: false
+  # Share Game Overs with the room; a received death takes one random party member.
+  death_link: false
 ```
 
 The supplied fixture contains this configuration. On first setup, copy it and

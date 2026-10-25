@@ -12,13 +12,15 @@ from audit_access import load_access
 GRAPH = load_access()
 REGISTRY = json.loads((ROOT / "apworld/lookoutside/vertical_slice.json").read_text(encoding="utf-8"))
 ACTIVITIES = json.loads((ROOT / "apworld/lookoutside/activities.json").read_text(encoding="utf-8"))
+DAILY_LIFE = json.loads((ROOT / "apworld/lookoutside/daily_life.json").read_text(encoding="utf-8"))
 SUPPLIES = json.loads((ROOT / "apworld/lookoutside/supplies.json").read_text(encoding="utf-8"))
 COMPANIONS = json.loads((ROOT / "apworld/lookoutside/companions.json").read_text(encoding="utf-8"))["companions"]
 
 
 class ActivityTests(unittest.TestCase):
     def test_ids_and_names_never_collide_with_the_registry(self):
-        locations = REGISTRY["locations"] + ACTIVITIES["locations"] + [row["location"] for row in COMPANIONS]
+        locations = (REGISTRY["locations"] + ACTIVITIES["locations"] + DAILY_LIFE["locations"] +
+                     [row["location"] for row in COMPANIONS])
         items = REGISTRY["items"] + [SUPPLIES["item"]] + [row["item"] for row in COMPANIONS]
         for rows in (locations, items):
             self.assertEqual(len({row["ap_id"] for row in rows}), len(rows))
@@ -88,6 +90,23 @@ class CompanionTests(unittest.TestCase):
             self.assertIn(f'{row["item"]["ap_id"]}: Object.freeze({{"kind": "upgrade", "id": {row["actor_id"]}', plugin)
 
 
+
+
+class DailyLifeTests(unittest.TestCase):
+    def test_three_filler_only_moments_with_one_supply_cache_each(self):
+        self.assertEqual(len(DAILY_LIFE["locations"]), 3)
+        self.assertEqual(DAILY_LIFE["items"], [{"name": "Supply Cache", "quantity": 3}])
+        for row in DAILY_LIFE["locations"]:
+            self.assertTrue(593000200 < row["ap_id"] < 593000300)
+            self.assertIn(row["region"], GRAPH.regions)
+            self.assertIn(row["trigger"]["switch_id"], {602, 603, 605})
+            self.assertNotIn(row["key"], GRAPH.checks)
+
+    def test_plugin_embeds_the_same_triggers(self):
+        plugin = (ROOT / "game_plugin/LookOutsideArchipelago.js").read_text(encoding="utf-8")
+        self.assertIn(f"const dailyLifeVersion = {DAILY_LIFE['feature_version']};", plugin)
+        for row in DAILY_LIFE["locations"]:
+            self.assertIn(f'"key": "{row["key"]}", "name": "{row["name"]}", "apId": {row["ap_id"]}', plugin)
 
 class VersionTests(unittest.TestCase):
     def test_plugin_and_apworld_versions_match(self):

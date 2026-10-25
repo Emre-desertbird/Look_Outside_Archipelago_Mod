@@ -15,6 +15,7 @@ REGISTRY = PROJECT_DIR / "apworld" / "lookoutside" / "vertical_slice.json"
 ACTIVITIES = PROJECT_DIR / "apworld" / "lookoutside" / "activities.json"
 COMPANIONS = PROJECT_DIR / "apworld" / "lookoutside" / "companions.json"
 SUPPLIES = PROJECT_DIR / "apworld" / "lookoutside" / "supplies.json"
+DAILY_LIFE = PROJECT_DIR / "apworld" / "lookoutside" / "daily_life.json"
 PLUGIN = PROJECT_DIR / "game_plugin" / "LookOutsideArchipelago.js"
 BEGIN = "    // BEGIN GENERATED DEVELOPMENT REGISTRY\n"
 END = "    // END GENERATED DEVELOPMENT REGISTRY\n"
@@ -27,7 +28,7 @@ def js_object(value: dict, indent: int = 0) -> str:
     return "\n".join(" " * indent + line for line in source.splitlines())
 
 
-def render(data: dict, activities: dict, companions: dict, supplies: dict) -> str:
+def render(data: dict, activities: dict, companions: dict, supplies: dict, daily_life: dict) -> str:
     sources = []
     resolutions = {family["key"] for family in data.get("quest_families", [])
                    if family.get("resolve_on_acquisition")}
@@ -144,6 +145,13 @@ def render(data: dict, activities: dict, companions: dict, supplies: dict) -> st
     lines.append("    ]);")
     supply_table = [[row["id"], row["weight"]] for row in supplies["table"]]
     lines.append(f"    const supplyCache = Object.freeze({{ rolls: {supplies['rolls']}, table: {json.dumps(supply_table)} }});")
+    lines.append(f"    const dailyLifeVersion = {daily_life['feature_version']};")
+    lines.append("    const dailyLifeLocations = Object.freeze([")
+    for location in daily_life["locations"]:
+        entry = {"key": location["key"], "name": location["name"], "apId": location["ap_id"],
+                 "trigger": location["trigger"]}
+        lines.append("        Object.freeze(" + json.dumps(entry, ensure_ascii=False) + "),")
+    lines.append("    ]);")
     lines.append(f"    const companionVersion = {companions['feature_version']};")
     lines.append("    const companionUpgrades = Object.freeze([")
     for companion in companions["companions"]:
@@ -164,6 +172,7 @@ def main() -> None:
     activities = json.loads(ACTIVITIES.read_text(encoding="utf-8"))
     companions = json.loads(COMPANIONS.read_text(encoding="utf-8"))
     supplies = json.loads(SUPPLIES.read_text(encoding="utf-8"))
+    daily_life = json.loads(DAILY_LIFE.read_text(encoding="utf-8"))
     plugin = PLUGIN.read_text(encoding="utf-8")
     expected_build = ("    const auditedBuild = Object.freeze({ gameId: "
                       f"{data['audited_game_id']}, versionId: {data['audited_version_id']} }});")
@@ -181,7 +190,7 @@ def main() -> None:
     stop = plugin.index(END)
     if stop < start:
         raise ValueError("Generated-registry markers are reversed")
-    expected = render(data, activities, companions, supplies)
+    expected = render(data, activities, companions, supplies, daily_life)
     if args.check:
         if plugin[start:stop] != expected:
             raise SystemExit("Plugin registry is out of sync; run sync_plugin_registry.py")

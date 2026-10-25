@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from Options import PerGameCommonOptions, Toggle
+from Options import DeathLink, PerGameCommonOptions, Toggle
 
 
 class ActivityChecks(Toggle):
@@ -21,7 +21,16 @@ class CompanionUpgrades(Toggle):
     display_name = "Companion Upgrades"
 
 
+class DailyLifeChecks(Toggle):
+    """Adds three optional checks for everyday moments at home: your first shower,
+    your first night's sleep and the first videogame you play. Nothing is taken
+    away, and these checks only ever hold filler."""
+    display_name = "Daily Life Checks"
+
+
 @dataclass
 class LookOutsideOptions(PerGameCommonOptions):
     activity_checks: ActivityChecks
     companion_upgrades: CompanionUpgrades
+    daily_life_checks: DailyLifeChecks
+    death_link: DeathLink

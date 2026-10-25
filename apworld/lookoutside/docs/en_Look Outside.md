@@ -26,6 +26,13 @@ cooking your first and third meal, and crafting your first item. You keep the
 food and crafted item. Each adds one Supply Cache (three random consumables) to
 the pool.
 
+Optional `daily_life_checks` (off by default) adds three filler-only checks for
+your first shower, first night's sleep and first videogame.
+
+Optional `death_link` shares deaths with the room: a received death takes one
+random party member (Game Over if none remain), and your own Game Overs are sent,
+except ones a received death caused. The world also supports Universal Tracker.
+
 Optional `companion_upgrades` (off by default) adds 17 useful upgrade items, one
 per recruitable companion, and a filler-only check when each first joins. Each
 upgrade is a passive fitting that companion: for example, Sophie starts every

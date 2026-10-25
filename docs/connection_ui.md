@@ -45,6 +45,16 @@ timed quests the player has started (Charan's cave after the Rose is given, Leig
 Phone once charging, the crossword after the first puzzle), and items waiting for bag
 space. It has its own switch (*Archipelago Tracker* in Options, saved in the config).
 
+When items reach the inventory, one short `TwinkleChime` plays per delivery batch,
+at the game's sound-effect volume (*Archipelago Item Sound* in Options or Settings).
+
+With `death_link` in the seed's slot data, the client adds the DeathLink tag after
+connecting. A received Bounce queues a death (at most three); on the map it applies
+when no message, event or transfer is running, and in battle when the turn starts.
+It kills one random living battle member; if none remain, a message is shown and
+then Game Over. Entering Game Over sends a Bounce, unless a received death caused
+it. Deaths from our own slot name or matching our last sent time are ignored.
+
 The Log tab and overlay show the server's messages (item sends, hints, goals,
 chat) with names from the room's data package, plus local lines for connecting,
 offline checks, Supply Cache contents and companion upgrades. Other players'

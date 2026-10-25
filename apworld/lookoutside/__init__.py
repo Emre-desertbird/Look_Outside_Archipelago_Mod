@@ -6,7 +6,7 @@ from importlib import resources
 from BaseClasses import Item, ItemClassification, Location, LocationProgressType, Region, Tutorial
 from worlds.AutoWorld import WebWorld, World
 
-from .access import region
+from .access import item, region
 from .access_data import GRAPH
 from .chronology import LOGIC_VERSION, day
 from .options import LookOutsideOptions
@@ -18,12 +18,13 @@ GAME = DATA["game_name"]
 # registry version stay unchanged. IDs are reserved even while a feature is off.
 ACTIVITIES = json.loads(resources.files(__package__).joinpath("activities.json").read_text(encoding="utf-8"))
 COMPANIONS = json.loads(resources.files(__package__).joinpath("companions.json").read_text(encoding="utf-8"))
+DAILY_LIFE = json.loads(resources.files(__package__).joinpath("daily_life.json").read_text(encoding="utf-8"))
 SUPPLIES = json.loads(resources.files(__package__).joinpath("supplies.json").read_text(encoding="utf-8"))
 SUPPLY_CACHE = SUPPLIES["item"]
 COMPANION_LOCATIONS = [row["location"] for row in COMPANIONS["companions"]]
 COMPANION_ITEMS = [{**row["item"], "quantity": 1} for row in COMPANIONS["companions"]]
 LOCATIONS = {entry["name"]: entry["ap_id"]
-             for entry in DATA["locations"] + ACTIVITIES["locations"] + COMPANION_LOCATIONS}
+             for entry in DATA["locations"] + ACTIVITIES["locations"] + COMPANION_LOCATIONS + DAILY_LIFE["locations"]}
 ITEMS = {entry["name"]: entry["ap_id"] for entry in DATA["items"] + COMPANION_ITEMS + [SUPPLY_CACHE]}
 ITEM_CLASSIFICATIONS = {
     entry["name"]: {
@@ -64,6 +65,19 @@ class LookOutsideWorld(World):
     location_name_to_id = LOCATIONS
     item_name_to_id = ITEMS
     required_client_version = (0, 6, 7)
+    # Universal Tracker rebuilds this world from the seed's slot data (no YAML).
+    ut_can_gen_without_yaml = True
+
+    def generate_early(self) -> None:
+        passthrough = getattr(self.multiworld, "re_gen_passthrough", {}).get(self.game)
+        if passthrough:
+            for name in ("activity_checks", "companion_upgrades", "daily_life_checks", "death_link"):
+                if name in passthrough:
+                    getattr(self.options, name).value = int(bool(passthrough[name]))
+
+    @staticmethod
+    def interpret_slot_data(slot_data: dict) -> dict:
+        return slot_data
 
     def create_regions(self) -> None:
         GRAPH.validate(DATA)
@@ -83,15 +97,18 @@ class LookOutsideWorld(World):
             parent.locations.append(location)
             if entry.get("missable"):
                 location.progress_type = LocationProgressType.EXCLUDED
-        if self.options.activity_checks:
-            for entry in ACTIVITIES["locations"]:
-                parent = regions[entry["region"]]
-                location = LookOutsideLocation(self.player, entry["name"], entry["ap_id"], parent)
-                if "requires_region" in entry:
-                    location.access_rule = region(entry["requires_region"]).as_ap_rule(self.player)
-                # Filler only: an optional activity must never hold anyone's progression.
-                location.progress_type = LocationProgressType.EXCLUDED
-                parent.locations.append(location)
+        optional_rows = ((ACTIVITIES["locations"] if self.options.activity_checks else []) +
+                         (DAILY_LIFE["locations"] if self.options.daily_life_checks else []))
+        for entry in optional_rows:
+            parent = regions[entry["region"]]
+            location = LookOutsideLocation(self.player, entry["name"], entry["ap_id"], parent)
+            if "requires_region" in entry:
+                location.access_rule = region(entry["requires_region"]).as_ap_rule(self.player)
+            if "requires_item" in entry:
+                location.access_rule = item(entry["requires_item"]).as_ap_rule(self.player)
+            # Filler only: an optional activity must never hold anyone's progression.
+            location.progress_type = LocationProgressType.EXCLUDED
+            parent.locations.append(location)
         if self.options.companion_upgrades:
             # Recruitment depends on visitors and choices, so joins are never
             # treated as reliable: excluded locations only hold filler.
@@ -114,7 +131,8 @@ class LookOutsideWorld(World):
 
     def create_items(self) -> None:
         rows = (DATA["items"] + (ACTIVITIES["items"] if self.options.activity_checks else []) +
-                (COMPANION_ITEMS if self.options.companion_upgrades else []))
+                (COMPANION_ITEMS if self.options.companion_upgrades else []) +
+                (DAILY_LIFE["items"] if self.options.daily_life_checks else []))
         for entry in rows:
             self.multiworld.itempool.extend(
                 self.create_item(entry["name"]) for _ in range(entry["quantity"])
@@ -146,4 +164,8 @@ class LookOutsideWorld(World):
             "activity_version": ACTIVITIES["feature_version"],
             "companion_upgrades": bool(self.options.companion_upgrades),
             "companion_version": COMPANIONS["feature_version"],
+            "daily_life_checks": bool(self.options.daily_life_checks),
+            "daily_life_version": DAILY_LIFE["feature_version"],
+            # Look Outside's DeathLink takes one random party member (Game Over if none remain).
+            "death_link": bool(self.options.death_link),
         }

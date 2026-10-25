@@ -35,6 +35,7 @@ module.exports = function installBattleHarness() {
             return quiet;
         },
         gainDropItems() { trace.granted.push(...this._rewards.items); },
+        startTurn() { this._phase = "turn"; },
         endBattle(result) { trace.endings.push(result); },
     };
     globalThis.$gameTroop = { troop() { return { id: BattleManager._troopId }; } };

@@ -15,7 +15,7 @@
     const auditedBuild = Object.freeze({ gameId: 51778622, versionId: 74642914 });
     const developmentRegistryVersion = 74;
     // Mod release; matches apworld/lookoutside/archipelago.json world_version.
-    const pluginVersion = "0.0.5";
+    const pluginVersion = "0.0.6";
     if (globalThis.LookOutsideArchipelago) {
         throw new Error(`${pluginName} loaded more than once`);
     }
@@ -8551,6 +8551,12 @@
         Object.freeze({"key": "activity_craft_1", "name": "Crafting - First Item", "apId": 593000101, "crafts": 1}),
     ]);
     const supplyCache = Object.freeze({ rolls: 3, table: [[7, 3], [10, 3], [11, 3], [13, 3], [18, 3], [19, 3], [20, 3], [21, 3], [22, 3], [23, 3], [26, 3], [27, 3], [28, 3], [36, 3], [37, 3], [38, 3], [40, 3], [212, 3], [213, 3], [214, 3], [215, 3], [216, 3], [219, 3], [220, 3], [221, 3], [222, 3], [223, 3], [224, 3], [227, 3], [228, 3], [229, 3], [230, 3], [231, 3], [8, 1], [9, 1], [14, 1], [17, 1], [24, 1], [34, 1], [41, 1], [42, 1], [43, 1], [44, 1], [45, 1], [51, 1], [55, 1], [71, 1], [80, 1], [86, 1], [89, 1], [90, 1], [98, 1], [99, 1], [100, 1]] });
+    const dailyLifeVersion = 1;
+    const dailyLifeLocations = Object.freeze([
+        Object.freeze({"key": "daily_first_shower", "name": "Daily Life - First Shower", "apId": 593000201, "trigger": {"map_id": 4, "event_id": 6, "command_index": 18, "switch_id": 602}}),
+        Object.freeze({"key": "daily_first_sleep", "name": "Daily Life - First Night's Sleep", "apId": 593000202, "trigger": {"common_event_id": 9, "command_index": 85, "switch_id": 603}}),
+        Object.freeze({"key": "daily_first_videogame", "name": "Daily Life - First Videogame", "apId": 593000203, "trigger": {"map_id": 3, "event_id": 13, "command_index": 108, "switch_id": 605}}),
+    ]);
     const companionVersion = 1;
     const companionUpgrades = Object.freeze([
         Object.freeze({"actorId": 2, "name": "Lyle", "key": "companion_join_02", "apId": 594000002, "passive": "Flash Photography", "summary": "Normal attacks may Blind (20%)", "effect": {"traits": [[32, 5, 0.2]]}}),
@@ -8601,6 +8607,14 @@
     // Optional companion upgrades: join checks plus owned upgrades by actor ID.
     let companionChecks = false;
     let ownedUpgrades = new Set();
+    let dailyLifeChecks = false;
+    // DeathLink (death_link option): session state only, never saved.
+    let deathLinkEnabled = false;
+    let deathLinkSender = null;
+    let pendingDeaths = [];
+    let deathLinkFinalBlow = false;
+    let deathLinkGameOver = false;
+    let lastDeathSent = 0;
     let pendingDayRollover = false;
     let dayHold = false;
     let powerState = newPowerState();
@@ -8711,8 +8725,9 @@
 
     function cancelReconnect() {
         if (reconnectTimer) {
-            reconnectTimer.clear(reconnectTimer.id);
+            const { id, clear } = reconnectTimer;
             reconnectTimer = null;
+            clear.call(globalThis, id);
         }
     }
 
@@ -8756,6 +8771,12 @@
         mealsCooked = 0;
         companionChecks = false;
         ownedUpgrades = new Set();
+        dailyLifeChecks = false;
+        deathLinkEnabled = false;
+        deathLinkSender = null;
+        pendingDeaths = [];
+        deathLinkFinalBlow = false;
+        deathLinkGameOver = false;
         pendingDayRollover = false;
         dayHold = false;
         powerState = newPowerState();
@@ -8804,12 +8825,14 @@
         const savedMeals = saved.mealsCooked ?? 0;
         const savedCompanions = saved.companionChecks ?? false;
         const savedUpgrades = saved.ownedUpgrades ?? [];
+        const savedDailyLife = saved.dailyLifeChecks ?? false;
         const validUpgrades = Array.isArray(savedUpgrades) && new Set(savedUpgrades).size === savedUpgrades.length &&
             savedUpgrades.every(id => companionUpgrades.some(entry => entry.actorId === id));
         const validKeys = Array.isArray(saved.checkedKeys) &&
             saved.checkedKeys.every(key => Object.hasOwn(developmentLocationIds, key) ||
                 (savedActivities === true && activityLocations.some(entry => entry.key === key)) ||
-                (savedCompanions === true && companionUpgrades.some(entry => entry.key === key))) &&
+                (savedCompanions === true && companionUpgrades.some(entry => entry.key === key)) ||
+                (savedDailyLife === true && dailyLifeLocations.some(entry => entry.key === key))) &&
             new Set(saved.checkedKeys).size === saved.checkedKeys.length;
         const validIdentity = saved.identity === null ||
             (saved.identity && typeof saved.identity.seedName === "string" && saved.identity.seedName &&
@@ -8831,7 +8854,7 @@
             typeof saved.goalCompleted !== "boolean" ||
             typeof saved.elevatorFreakDefeated !== "boolean" ||
             typeof savedActivities !== "boolean" || !Number.isSafeInteger(savedMeals) || savedMeals < 0 ||
-            typeof savedCompanions !== "boolean" || !validUpgrades ||
+            typeof savedCompanions !== "boolean" || !validUpgrades || typeof savedDailyLife !== "boolean" ||
             typeof saved.pendingDayRollover !== "boolean" || typeof saved.dayHold !== "boolean" ||
             (saved.pendingDayRollover && saved.dayHold) || !validPower) {
             rejectSave(saved, "Unsupported Archipelago save state or unknown queued item");
@@ -8848,6 +8871,7 @@
         mealsCooked = savedMeals;
         companionChecks = savedCompanions;
         ownedUpgrades = new Set(savedUpgrades);
+        dailyLifeChecks = savedDailyLife;
         pendingDayRollover = saved.pendingDayRollover;
         dayHold = saved.dayHold;
         powerState = { ...saved.powerState, notices: saved.powerState.notices.slice() };
@@ -8867,6 +8891,7 @@
             mealsCooked,
             companionChecks,
             ownedUpgrades: [...ownedUpgrades].sort((a, b) => a - b),
+            dailyLifeChecks,
             pendingDayRollover,
             dayHold,
             powerState: { ...powerState, notices: powerState.notices.slice() },
@@ -9035,7 +9060,7 @@
 
     function locationIdForKey(key) {
         return developmentLocationIds[key] ??
-            [...activityLocations, ...companionUpgrades].find(entry => entry.key === key)?.apId;
+            [...activityLocations, ...companionUpgrades, ...dailyLifeLocations].find(entry => entry.key === key)?.apId;
     }
 
     function logPrintJson(packet) {
@@ -9072,6 +9097,7 @@
         configManager.loaHudRight = false;
         configManager.loaHudLines = 3;
         configManager.loaTracker = true;
+        configManager.loaSound = true;
         const originalMakeData = configManager.makeData;
         configManager.makeData = function() {
             const config = originalMakeData.apply(this, arguments);
@@ -9079,6 +9105,7 @@
             config.loaHudRight = this.loaHudRight;
             config.loaHudLines = this.loaHudLines;
             config.loaTracker = this.loaTracker;
+            config.loaSound = this.loaSound;
             return config;
         };
         const originalApplyData = configManager.applyData;
@@ -9088,6 +9115,7 @@
             this.loaHudRight = config?.loaHudRight === true;
             this.loaHudLines = [0, 3, 6, 10].includes(config?.loaHudLines) ? config.loaHudLines : 3;
             this.loaTracker = config?.loaTracker !== false;
+            this.loaSound = config?.loaSound !== false;
         };
     }
     const optionsWindow = globalThis.Window_Options?.prototype;
@@ -9097,6 +9125,7 @@
             originalAddGeneralOptions.apply(this, arguments);
             this.addCommand("Archipelago Log", "loaHud");
             this.addCommand("Archipelago Tracker", "loaTracker");
+            this.addCommand("Archipelago Item Sound", "loaSound");
         };
     }
 
@@ -9295,7 +9324,8 @@
             bound,
             `Checks: ${checkedKeys.size} / ${Object.keys(developmentLocationIds).length +
                 (activityChecks ? activityLocations.length : 0) +
-                (companionChecks ? companionUpgrades.length : 0)}; pending items: ${pendingItems.length}`,
+                (companionChecks ? companionUpgrades.length : 0) +
+                (dailyLifeChecks ? dailyLifeLocations.length : 0)}; pending items: ${pendingItems.length}`,
             ownedUpgrades.size ? `Companion upgrades: ${companionUpgrades
                 .filter(entry => ownedUpgrades.has(entry.actorId)).map(entry => entry.name).join(", ")}` : "",
             dayHold ? `Day ${globalThis.$gameVariables?.value(15)} is held` : "Day is not held",
@@ -9464,6 +9494,7 @@
         connection = null;
         checkHandler = null;
         goalReporter = null;
+        deathLinkSender = null;
         connectionState = "disconnected";
         connectionError = null;
         socket?.close();
@@ -9481,7 +9512,8 @@
     // Overview numbers prefer the server's view; offline they fall back to the save.
     function statusSnapshot() {
         const localTotal = Object.keys(developmentLocationIds).length +
-            (activityChecks ? activityLocations.length : 0) + (companionChecks ? companionUpgrades.length : 0);
+            (activityChecks ? activityLocations.length : 0) + (companionChecks ? companionUpgrades.length : 0) +
+            (dailyLifeChecks ? dailyLifeLocations.length : 0);
         const serverTotal = knownMissingIds ? knownCheckedIds.size + knownMissingIds.size : null;
         const unsynced = [...checkedKeys].filter(key => !knownCheckedIds.has(locationIdForKey(key))).length;
         const day = globalThis.$gameVariables?.value(15) ?? 0;
@@ -9580,6 +9612,7 @@
                <div class="loa-panel" data-panel="settings" role="tabpanel" hidden>
                  <label><input type="checkbox" class="loa-hud-toggle">Show the status overlay on the map</label>
                  <label><input type="checkbox" class="loa-tracker-toggle">Show the tracker (room checks, quests)</label>
+                 <label><input type="checkbox" class="loa-sound-toggle">Play a chime when items arrive</label>
                  <label>Overlay side<select class="loa-hud-side"><option value="left">Left</option>
                    <option value="right">Right</option></select></label>
                  <label>Log lines in the overlay<select class="loa-hud-lines"><option value="0">0 (status only)</option>
@@ -9676,6 +9709,8 @@
             const hudSide = select(".loa-hud-side");
             const hudLines = select(".loa-hud-lines");
             const trackerToggle = select(".loa-tracker-toggle");
+            const soundToggle = select(".loa-sound-toggle");
+            soundToggle.checked = configManager?.loaSound !== false;
             hudToggle.checked = configManager?.loaHud !== false;
             trackerToggle.checked = configManager?.loaTracker !== false;
             hudSide.value = configManager?.loaHudRight ? "right" : "left";
@@ -9686,9 +9721,12 @@
                 configManager.loaHudRight = hudSide.value === "right";
                 configManager.loaHudLines = Number(hudLines.value);
                 configManager.loaTracker = trackerToggle.checked;
+                configManager.loaSound = soundToggle.checked;
                 try { configManager.save?.(); } catch (_) { /* Settings still apply this session. */ }
             };
-            for (const control of [hudToggle, hudSide, hudLines, trackerToggle]) control.addEventListener("change", saveHudSettings);
+            for (const control of [hudToggle, hudSide, hudLines, trackerToggle, soundToggle]) {
+                control.addEventListener("change", saveHudSettings);
+            }
         }
         const renderOverview = snapshot => {
             const pill = select(".loa-pill");
@@ -9711,6 +9749,7 @@
             ].map(([title, value, note]) => `<div class="loa-card"><small>${escapeHtml(title)}</small>` +
                 `<b>${escapeHtml(value)}</b><small>${escapeHtml(note)}</small></div>`).join(""));
             const notes = [goalReleaseSummary(), connectionError || "",
+                deathLinkEnabled ? "DeathLink is on: a death in the room takes one of your party members." : "",
                 dayHold && (globalThis.$gameVariables?.value(15) ?? 0) >= 15 ? "Day 15 is final. Finish an ending to release unfinished checks." : ""];
             select(".loa-note").textContent = notes.filter(Boolean).join("\n");
         };
@@ -9899,7 +9938,20 @@
         });
     }
 
+    function playItemSound() {
+        if (configManager?.loaSound === false || !globalThis.AudioManager?.playSe) return;
+        try {
+            AudioManager.playSe({ name: "TwinkleChime", volume: 60, pitch: 100, pan: 0 });
+        } catch (_) { /* A missing sound never blocks delivery. */ }
+    }
+
     function deliverPendingItems() {
+        const before = pendingItems.length;
+        deliverPendingItemsOnce();
+        if (pendingItems.length < before) playItemSound();
+    }
+
+    function deliverPendingItemsOnce() {
         if (saveError || !itemDefinitions || !globalThis.$gameParty) return;
         for (const entry of [...pendingItems]) {
             const definition = itemDefinitions[entry.item.item];
@@ -10015,7 +10067,7 @@
         }
         const locationIds = options.locationIds || developmentLocationIds;
         // Optional-feature IDs; slot data decides whether this seed uses them.
-        const featureIds = Object.fromEntries([...activityLocations, ...companionUpgrades]
+        const featureIds = Object.fromEntries([...activityLocations, ...companionUpgrades, ...dailyLifeLocations]
             .map(entry => [entry.key, entry.apId]));
         const locationId = key => locationIds[key] ?? featureIds[key];
         const definitions = options.itemDefinitions || developmentItemDefinitions;
@@ -10056,7 +10108,8 @@
             reconnectAttempt++;
             const schedule = options.setTimeout || globalThis.setTimeout;
             const clear = options.clearTimeout || globalThis.clearTimeout;
-            const id = schedule(() => {
+            // Browser timers must be called on the window ("Illegal invocation" otherwise).
+            const id = schedule.call(globalThis, () => {
                 reconnectTimer = null;
                 if (generation === connectionGeneration) connectForDevelopment(retryOptions, true);
             }, delay);
@@ -10149,6 +10202,10 @@
                         if (seedActivities && packet.slot_data.activity_version !== activityVersion) {
                             throw new Error("This seed's activity checks differ from this mod version");
                         }
+                        const seedDailyLife = packet.slot_data.daily_life_checks === true;
+                        if (seedDailyLife && packet.slot_data.daily_life_version !== dailyLifeVersion) {
+                            throw new Error("This seed's daily-life checks differ from this mod version");
+                        }
                         const seedCompanions = packet.slot_data.companion_upgrades === true;
                         if (seedCompanions && packet.slot_data.companion_version !== companionVersion) {
                             throw new Error("This seed's companion upgrades differ from this mod version");
@@ -10161,6 +10218,15 @@
                         activityChecks = seedActivities;
                         if (activityChecks) {
                             for (const entry of activityLocations) keyByLocationId.set(entry.apId, entry.key);
+                        }
+                        dailyLifeChecks = seedDailyLife;
+                        if (dailyLifeChecks) {
+                            for (const entry of dailyLifeLocations) keyByLocationId.set(entry.apId, entry.key);
+                        }
+                        deathLinkEnabled = packet.slot_data.death_link === true;
+                        if (deathLinkEnabled) {
+                            send([{ cmd: "ConnectUpdate", tags: ["DeathLink"] }]);
+                            deathLinkSender = data => send([{ cmd: "Bounce", tags: ["DeathLink"], data }]);
                         }
                         companionChecks = seedCompanions;
                         if (companionChecks) {
@@ -10194,6 +10260,8 @@
                         if (goalCompleted) goalReporter();
                     } else if (packet.cmd === "DataPackage") {
                         rememberDataPackage(packet.data?.games);
+                    } else if (packet.cmd === "Bounced") {
+                        if (Array.isArray(packet.tags) && packet.tags.includes("DeathLink")) receiveDeathLink(packet.data);
                     } else if (packet.cmd === "PrintJSON") {
                         logPrintJson(packet);
                     } else if (packet.cmd === "RoomUpdate") {
@@ -10232,6 +10300,7 @@
         socket.onclose = () => {
             if (socket === connection) {
                 goalReporter = null;
+                deathLinkSender = null;
                 connection = null;
                 // Hosted AP rooms may require TLS. Chromium exposes opening
                 // failures as opaque error events, so try the secure transport
@@ -10455,6 +10524,12 @@
             JSON.stringify(command.parameters) === JSON.stringify(params);
     }
 
+    function activitiesEnabledBase() {
+        return active && identity &&
+            globalThis.$dataSystem?.advanced?.gameId === auditedBuild.gameId &&
+            globalThis.$dataSystem?.versionId === auditedBuild.versionId;
+    }
+
     function activitiesEnabled() {
         return active && identity && activityChecks &&
             globalThis.$dataSystem?.advanced?.gameId === auditedBuild.gameId &&
@@ -10475,6 +10550,28 @@
                 if (entry.meals && mealsCooked >= entry.meals) recordCheck(entry);
             }
         }
+        return result;
+    };
+    // Daily-life checks: each action sets its native "once" switch every time;
+    // the first one with the feature enabled sends the check.
+    function dailyLifeTrigger(context, params) {
+        return dailyLifeLocations.find(entry => {
+            const trigger = entry.trigger;
+            const expected = [trigger.switch_id, trigger.switch_id, 0];
+            if (JSON.stringify(params) !== JSON.stringify(expected)) return false;
+            if (trigger.common_event_id !== undefined) {
+                return isCommonEventCommand(context, trigger.common_event_id, trigger.command_index, 121, expected);
+            }
+            const pages = globalThis.$dataMap?.events?.[trigger.event_id]?.pages || [];
+            return context._mapId === trigger.map_id && context._eventId === trigger.event_id &&
+                context._index === trigger.command_index && pages.some(page => page.list === context._list);
+        }) || null;
+    }
+    const dailyLifeCommand121 = interpreter.command121;
+    interpreter.command121 = function(params) {
+        const entry = dailyLifeChecks && activitiesEnabledBase() ? dailyLifeTrigger(this, params) : null;
+        const result = dailyLifeCommand121.call(this, params);
+        if (result && entry) recordCheck(entry);
         return result;
     };
     // CE45 c126 consumes both inputs and grants the crafted result.
@@ -10574,6 +10671,99 @@
                 this.addState(146);
             }
             return result;
+        };
+    }
+    // ---- DeathLink ----
+    // A received death takes one random living member of the active party; if
+    // that was the last one, it is a Game Over. Our own Game Overs are shared
+    // with the room, except ones a received death caused (no ping-pong).
+    function ownSlotName() {
+        return slotInfo[identity?.slot]?.name || lastSlotName || "Look Outside";
+    }
+
+    function receiveDeathLink(data) {
+        if (!deathLinkEnabled || !active || !data || typeof data !== "object") return;
+        const source = String(data.source ?? "Someone");
+        // The server echoes our own death back; ignore it.
+        if (source === ownSlotName() || (lastDeathSent && Number(data.time) === lastDeathSent)) return;
+        pendingDeaths.push({ source, cause: typeof data.cause === "string" ? data.cause : "" });
+        if (pendingDeaths.length > 3) pendingDeaths.shift();
+    }
+
+    function livingMembers() {
+        return (globalThis.$gameParty?.battleMembers?.() || []).filter(member =>
+            member.isAlive_wGlitch ? member.isAlive_wGlitch() : member.isAlive());
+    }
+
+    function applyPendingDeath() {
+        const death = pendingDeaths.shift();
+        const living = livingMembers();
+        if (!death || !living.length) return null;
+        const victim = living[Math.floor(Math.random() * living.length)];
+        victim.addState(victim.deathStateId?.() ?? 1);
+        // A native revive (such as the Indigo Mask) still applies.
+        const gameOver = livingMembers().length === 0;
+        if (gameOver) deathLinkFinalBlow = true;
+        const name = victim.name?.() || "A party member";
+        const text = `${death.source} died. ${name} ${gameOver ? "falls, and no one is left." : "collapses."}`;
+        addLog([{ text: `${death.source} died`, tone: "warning" },
+            { text: death.cause ? ` (${death.cause})` : "" },
+            { text: ` · ${name} ${gameOver ? "falls, and no one is left" : "collapses"}` }], "local");
+        globalThis.$gameTemp?.requestBattleRefresh?.();
+        return { victim: name, gameOver, text };
+    }
+
+    // Exploring: only when nothing else is happening, never during a cutscene.
+    function updateDeathLinkOnMap() {
+        if (!active) return;
+        const busy = globalThis.$gameMessage?.isBusy?.() || globalThis.$gameMap?.isEventRunning?.() ||
+            globalThis.$gamePlayer?.isTransferring?.();
+        if (deathLinkGameOver && !busy) {
+            deathLinkGameOver = false;
+            globalThis.SceneManager?.goto?.(globalThis.Scene_Gameover);
+            return;
+        }
+        if (deathLinkFinalBlow && livingMembers().length) deathLinkFinalBlow = false;
+        if (!pendingDeaths.length || busy || globalThis.$gameParty?.inBattle?.()) return;
+        const result = applyPendingDeath();
+        if (!result) return;
+        globalThis.$gameMessage?.add(`\\C[2]${result.text}\\C[0]`);
+        deathLinkGameOver = result.gameOver;
+    }
+
+    function reportOwnDeath() {
+        const causedByLink = deathLinkFinalBlow;
+        deathLinkFinalBlow = false;
+        deathLinkGameOver = false;
+        pendingDeaths = [];
+        if (!deathLinkEnabled || !active || causedByLink || !deathLinkSender || globalThis.$gameSwitches?.value(7)) return;
+        lastDeathSent = Date.now() / 1000;
+        const name = ownSlotName();
+        deathLinkSender({ time: lastDeathSent, source: name, cause: `${name} did not make it out in Look Outside.` });
+        addLog([{ text: "You died. Your death was shared with the room.", tone: "warning" }], "local");
+    }
+
+    const deathBattleManager = globalThis.BattleManager;
+    if (deathBattleManager?.startTurn) {
+        // Fights: applied as the turn starts, after commands are chosen. The
+        // game skips a fallen member's action and handles a full wipe itself.
+        const originalStartTurn = deathBattleManager.startTurn;
+        deathBattleManager.startTurn = function() {
+            const result = originalStartTurn.apply(this, arguments);
+            while (pendingDeaths.length && active) {
+                const death = applyPendingDeath();
+                if (!death) break;
+                this._logWindow?.push?.("addText", death.text);
+            }
+            return result;
+        };
+    }
+    const gameoverScene = globalThis.Scene_Gameover?.prototype;
+    if (gameoverScene?.start) {
+        const originalGameoverStart = gameoverScene.start;
+        gameoverScene.start = function() {
+            reportOwnDeath();
+            return originalGameoverStart.apply(this, arguments);
         };
     }
     const originalCommand250 = interpreter.command250;
@@ -10968,6 +11158,7 @@
             deliverPendingItems();
             updatePowerPresentation();
             updateDeliveryPresentation();
+            updateDeathLinkOnMap();
             updateHud();
             return result;
         };
@@ -11140,6 +11331,17 @@
         companionState() {
             return { enabled: companionChecks, owned: [...ownedUpgrades].sort((x, y) => x - y),
                 companions: companionUpgrades.map(entry => ({ ...entry, effect: { ...entry.effect } })) };
+        },
+        deathLinkState() {
+            return { enabled: deathLinkEnabled, pending: pendingDeaths.map(death => ({ ...death })),
+                finalBlow: deathLinkFinalBlow, gameOverQueued: deathLinkGameOver };
+        },
+        updateDeathLinkForDevelopment() {
+            if (globalThis.process?.env?.LOA_DEV_MODE !== "1") throw new Error("Development DeathLink update requires LOA_DEV_MODE=1");
+            updateDeathLinkOnMap();
+        },
+        dailyLifeState() {
+            return { enabled: dailyLifeChecks, locations: dailyLifeLocations.map(entry => ({ ...entry })) };
         },
         activityState() {
             return { enabled: activityChecks, mealsCooked,
