@@ -63,7 +63,8 @@
       "reward_database_id": 300,
       "message_index": 9,
       "message_text": "You find \\C[3]{Apartment 33 Key}\\C[0].",
-      "same_page_consumed_self_switch": "A"
+      "same_page_consumed_self_switch": "A",
+      "quest_family": "map006_event013"
     },
     {
       "key": "map006_event025_quest_pickup",
@@ -4221,7 +4222,9 @@
       "reward_kind": "weapon",
       "reward_database_id": 196,
       "message_index": 6,
-      "message_text": "Find \\C[12]{Voidblade}\\C[0]."
+      "message_text": "Find \\C[12]{Voidblade}\\C[0].",
+      "missable": true,
+      "exclusion_reason": "Map465 event2 page0 needs gaunt_disaster1364, set only by winning Gauntlet part 4 (Map470 event2, Troop840). The Gauntlet stays vanilla and unmodeled."
     },
     {
       "key": "wilhelmina_reward_sword",
@@ -12310,6 +12313,27 @@
           "parameters": [
             1083,
             1083,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "key": "map006_event013",
+      "name": "Apartment 33 Planter - Spare Apartment 33 Key",
+      "location_keys": [
+        "map006_event013"
+      ],
+      "completion_message": "Archipelago: Apartment 33 Planter - Spare Apartment 33 Key checked.",
+      "terminals": [
+        {
+          "map_id": 6,
+          "event_id": 13,
+          "page": 0,
+          "command_index": 18,
+          "command_code": 123,
+          "parameters": [
+            "A",
             0
           ]
         }

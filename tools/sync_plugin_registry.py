@@ -136,7 +136,8 @@ def render(data: dict, activities: dict, companions: dict, supplies: dict, daily
     lines.append(f"    const activityVersion = {activities['feature_version']};")
     lines.append("    const activityLocations = Object.freeze([")
     for location in activities["locations"]:
-        entry = {"key": location["key"], "name": location["name"], "apId": location["ap_id"]}
+        entry = {"key": location["key"], "name": location["name"], "apId": location["ap_id"],
+                 "rooms": location.get("rooms", [])}
         if "meals" in location:
             entry["meals"] = location["meals"]
         else:
@@ -149,7 +150,7 @@ def render(data: dict, activities: dict, companions: dict, supplies: dict, daily
     lines.append("    const dailyLifeLocations = Object.freeze([")
     for location in daily_life["locations"]:
         entry = {"key": location["key"], "name": location["name"], "apId": location["ap_id"],
-                 "trigger": location["trigger"]}
+                 "trigger": location["trigger"], "rooms": location.get("rooms", [])}
         lines.append("        Object.freeze(" + json.dumps(entry, ensure_ascii=False) + "),")
     lines.append("    ]);")
     lines.append(f"    const companionVersion = {companions['feature_version']};")

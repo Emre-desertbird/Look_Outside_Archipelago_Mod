@@ -13,7 +13,7 @@ native deadlines, corrected Day3/Day8 openings, and conservative quest waits.
 
 - APWorld access graph: **273 rules, 74 regions, 81 entrances**, active in generation.
   Missing rules fail validation. Combat equipment is never a requirement.
-- **35 quest-resolution groups**, including the fungus rescues, Darryl and the
+- **36 quest-resolution groups**, including the fungus rescues, Darryl and the
   Spider Husk. Alternate outcomes preserve native consequences.
 - **30 Simple Keys** and **two Black Keys** delivered through the reviewed bundles.
 - Vanilla quest dates/new-day waits, a 4 a.m. hold, and the Day15 home-door fallback.

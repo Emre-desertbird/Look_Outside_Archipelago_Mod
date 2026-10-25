@@ -689,10 +689,15 @@ def main() -> None:
                     command["parameters"] == terminal["parameters"],
                     f"Quest terminal changed: {key}")
             if command["code"] == 123:
+                page_commands = event["pages"][terminal["page"]]["list"]
+                # Either a later page takes over once A is set, or the same page
+                # opens with "if self switch A is OFF" around the terminal.
+                same_page = (page_commands[0]["code"] == 111 and page_commands[0]["parameters"] == [2, "A", 1] and
+                             all(c["indent"] >= 1 for c in page_commands[1:terminal["command_index"] + 1]))
                 require(command["parameters"] == ["A", 0] and
-                        any(p["conditions"]["selfSwitchValid"] and
-                            p["conditions"]["selfSwitchCh"] == "A"
-                            for p in event["pages"][terminal["page"] + 1:]),
+                        (same_page or any(p["conditions"]["selfSwitchValid"] and
+                                          p["conditions"]["selfSwitchCh"] == "A"
+                                          for p in event["pages"][terminal["page"] + 1:])),
                         f"Quest terminal consumed page changed: {key}")
             if command["code"] == 412:
                 require(len(members) == 1, f"Salvage family must have one check: {key}")

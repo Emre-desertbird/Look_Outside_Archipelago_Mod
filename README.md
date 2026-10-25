@@ -112,7 +112,7 @@ before your first run.
 | Randomized pool | **273 locations and items** by default; +3 with `activity_checks`, +17 with `companion_upgrades`, +3 with `daily_life_checks` (296 with all three) |
 | Item classification | Default pool: 81 progression, 122 useful, 70 filler **copies** |
 | Access graph | 74 regions, 81 entrances, a rule for every randomized location |
-| Quest handling | 35 shared resolution groups |
+| Quest handling | 36 shared resolution groups |
 
 The 273 default item copies comprise **70 weapons, 97 armor/accessories, 103 other
 physical items, and three virtual access unlocks**. There are 64 distinct items
@@ -263,13 +263,13 @@ resolution reconciles her five mutually exclusive reward checks. Closing the
 fungus illusion resolves the remaining rescue checks; an individual rescue
 checks only that person's reward.
 
-The 35 groups also cover reviewed branches of Frederic, Jasper, Pierre, Benjamin,
-Clint, Madison, the Masked Shadow, Mutt, Tickle, Juicebox's card trick, Rat Freak,
+The 36 groups also cover reviewed branches of Frederic, Jasper, Pierre, Benjamin,
+Clint, Madison, the Masked Shadow, Mutt, Tickle, Juicebox's card trick, the Apartment 33 planter, Rat Freak,
 Sybil, Hellen, Dan, High Five, and other registered resolutions. This does not
 preserve every quest indefinitely or change its native dates. See
 [choice handling](docs/quest_resolution_policy.md) for the audited outcomes.
 
-### Nine locations can contain only filler
+### Ten locations can contain only filler
 
 These missable checks cannot hold progression or useful items:
 
@@ -277,6 +277,13 @@ These missable checks cannot hold progression or useful items:
   Baseball Cap, east-bedroom Army Guy Figure and Tank Top, safe Old Rifle,
   and Baby Teeth's Jawbone Club.
 - **Pierre - Old Mail Visit**.
+- **Floor 4 Void - Voidblade**. It only appears after you win the last
+  Gauntlet fight, and the Gauntlet is not part of the logic.
+
+Two other checks got their rules fixed. The **Apartment 33 planter** now counts
+even when you open it before Lyle joins: the game says "It's gone" and the
+planter is used up, but the check is still sent. **Juicebox's card trick** now
+also needs **Power Restored**, since that page of the event needs power.
 
 The original teeth entrance closes at **noon on Day 4**. Its location labels use
 Apartment 32; the access graph calls this region **Original Teeth Apartment**.

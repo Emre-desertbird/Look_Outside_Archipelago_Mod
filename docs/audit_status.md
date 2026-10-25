@@ -1,6 +1,6 @@
 # Initial game-data audit
 
-**Current checkpoint:** registry 74, 273 checks/items, 35 quest groups, and
+**Current checkpoint:** registry 74, 273 checks/items, 36 quest groups, and
 all access rules active in the generator. See [current status](current_status.md)
 for seed169/171 evidence, reconciled source reports, and remaining release gates.
 The numbered batches below are historical evidence.

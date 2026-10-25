@@ -8459,6 +8459,23 @@
     ],
     "message": "Archipelago: Spider Husk resolved (1 check)."
 }),
+        Object.freeze({
+    "familyKey": "map006_event013",
+    "familyName": "Apartment 33 Planter - Spare Apartment 33 Key",
+    "locationKeys": [
+        "map006_event013"
+    ],
+    "mapId": 6,
+    "eventId": 13,
+    "pageIndex": 0,
+    "commandIndex": 18,
+    "commandCode": 123,
+    "parameters": [
+        "A",
+        0
+    ],
+    "message": "Archipelago: Apartment 33 Planter - Spare Apartment 33 Key checked."
+}),
     ]);
     const endingChoices = Object.freeze([
     {
@@ -8546,16 +8563,16 @@
 ]);
     const activityVersion = 1;
     const activityLocations = Object.freeze([
-        Object.freeze({"key": "activity_cook_meal_1", "name": "Cooking - First Meal", "apId": 593000001, "meals": 1}),
-        Object.freeze({"key": "activity_cook_meal_3", "name": "Cooking - Third Meal", "apId": 593000003, "meals": 3}),
-        Object.freeze({"key": "activity_craft_1", "name": "Crafting - First Item", "apId": 593000101, "crafts": 1}),
+        Object.freeze({"key": "activity_cook_meal_1", "name": "Cooking - First Meal", "apId": 593000001, "rooms": [3], "meals": 1}),
+        Object.freeze({"key": "activity_cook_meal_3", "name": "Cooking - Third Meal", "apId": 593000003, "rooms": [3], "meals": 3}),
+        Object.freeze({"key": "activity_craft_1", "name": "Crafting - First Item", "apId": 593000101, "rooms": [3], "crafts": 1}),
     ]);
     const supplyCache = Object.freeze({ rolls: 3, table: [[7, 3], [10, 3], [11, 3], [13, 3], [18, 3], [19, 3], [20, 3], [21, 3], [22, 3], [23, 3], [26, 3], [27, 3], [28, 3], [36, 3], [37, 3], [38, 3], [40, 3], [212, 3], [213, 3], [214, 3], [215, 3], [216, 3], [219, 3], [220, 3], [221, 3], [222, 3], [223, 3], [224, 3], [227, 3], [228, 3], [229, 3], [230, 3], [231, 3], [8, 1], [9, 1], [14, 1], [17, 1], [24, 1], [34, 1], [41, 1], [42, 1], [43, 1], [44, 1], [45, 1], [51, 1], [55, 1], [71, 1], [80, 1], [86, 1], [89, 1], [90, 1], [98, 1], [99, 1], [100, 1]] });
     const dailyLifeVersion = 1;
     const dailyLifeLocations = Object.freeze([
-        Object.freeze({"key": "daily_first_shower", "name": "Daily Life - First Shower", "apId": 593000201, "trigger": {"map_id": 4, "event_id": 6, "command_index": 18, "switch_id": 602}}),
-        Object.freeze({"key": "daily_first_sleep", "name": "Daily Life - First Night's Sleep", "apId": 593000202, "trigger": {"common_event_id": 9, "command_index": 85, "switch_id": 603}}),
-        Object.freeze({"key": "daily_first_videogame", "name": "Daily Life - First Videogame", "apId": 593000203, "trigger": {"map_id": 3, "event_id": 13, "command_index": 108, "switch_id": 605}}),
+        Object.freeze({"key": "daily_first_shower", "name": "Daily Life - First Shower", "apId": 593000201, "trigger": {"map_id": 4, "event_id": 6, "command_index": 18, "switch_id": 602}, "rooms": [4]}),
+        Object.freeze({"key": "daily_first_sleep", "name": "Daily Life - First Night's Sleep", "apId": 593000202, "trigger": {"common_event_id": 9, "command_index": 85, "switch_id": 603}, "rooms": [2]}),
+        Object.freeze({"key": "daily_first_videogame", "name": "Daily Life - First Videogame", "apId": 593000203, "trigger": {"map_id": 3, "event_id": 13, "command_index": 108, "switch_id": 605}, "rooms": [3]}),
     ]);
     const companionVersion = 1;
     const companionUpgrades = Object.freeze([
@@ -9155,6 +9172,11 @@
         const names = dataPackage[slotInfo[identity?.slot]?.game]?.locations;
         const named = keys.map(key => ({ key, checked: checkedKeys.has(key),
             name: names?.get(developmentLocationIds[key]) || null }));
+        // Optional checks this seed uses that happen in this room (oven, bed, shower...).
+        const optional = [...(activityChecks ? activityLocations : []), ...(dailyLifeChecks ? dailyLifeLocations : [])];
+        for (const entry of optional) {
+            if (entry.rooms?.includes(mapId)) named.push({ key: entry.key, checked: checkedKeys.has(entry.key), name: entry.name });
+        }
         // Full AP names ("Apartment 36 - Baseball Bat"); one room can mix areas and quests.
         return { total: named.length, left: named.filter(entry => !entry.checked).length,
             missing: named.filter(entry => !entry.checked).map(entry => entry.name).filter(Boolean) };

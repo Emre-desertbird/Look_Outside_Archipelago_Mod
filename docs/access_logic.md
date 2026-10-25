@@ -124,7 +124,7 @@ new day, and dialogue cutoffs such as Leigh's CE125 exit on Day15. The calendar
 cap does not run additional new-day cycles or finish quest stages. Players with
 unfinished quests can take the generic Day15 ending to complete the AP goal and
 release the remaining checks. This decision does not automatically restrict all
-timed quests to filler; the nine existing exclusions remain. Review actual
+timed quests to filler; the ten existing exclusions remain (Voidblade was added after a gate audit). Review actual
 quest inputs and routes before assigning access rules. See `ending_release.md`
 for completion/release behavior and `flesh_route_audit.md` for the separate
 spatial audit and its one-way-door evidence.

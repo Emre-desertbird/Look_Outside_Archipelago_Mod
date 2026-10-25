@@ -8,6 +8,7 @@
       "ap_id": 593000201,
       "region": "Apartment 33",
       "trigger": {"map_id": 4, "event_id": 6, "command_index": 18, "switch_id": 602},
+      "rooms": [4],
       "evidence": "Map004 e6 'Shower' p0 c18 sets tookShowerOnce602 after 'Yes'; water (switch23) is only ever turned on (Map005 e2 c147)"
     },
     {
@@ -16,6 +17,7 @@
       "ap_id": 593000202,
       "region": "Apartment 33",
       "trigger": {"common_event_id": 9, "command_index": 85, "switch_id": 603},
+      "rooms": [2],
       "evidence": "CE9 'Sleeping' c85 sets sleptOnce603 on every sleep"
     },
     {
@@ -25,6 +27,7 @@
       "region": "Apartment 33",
       "requires_item": "Power Restored",
       "trigger": {"map_id": 3, "event_id": 13, "command_index": 108, "switch_id": 605},
+      "rooms": [3],
       "evidence": "Map003 e13 'GameCollection' c108 sets playedAGame605 after a game is chosen; needs power (switch21); the intro always grants Super Jumplad and Madwheels 97 (Map005 e2 c202-203)"
     }
   ],

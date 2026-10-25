@@ -5,7 +5,7 @@ This APWorld supports Survivor Mode (Normal difficulty). Explorer Mode and Curse
 <!-- BEGIN GENERATED REGISTRY SUMMARY -->
 Registry **74** provides **273 checks**: 167 equipment copies, 103 physical items and 3 access unlocks.
 All checks have access rules across **74 regions and 81 entrances**,
-with **35 quest-resolution groups**.
+with **36 quest-resolution groups**.
 The solver also uses **19 generation-only calendar events**, outside the item pool.
 <!-- END GENERATED REGISTRY SUMMARY -->
 

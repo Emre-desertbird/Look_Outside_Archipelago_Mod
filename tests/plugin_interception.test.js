@@ -2332,7 +2332,12 @@ test("daily-life checks follow the game's first shower, sleep and videogame, gat
         DataManager.setupNewGame();
         socket = connect(true);
         assert.equal(plugin.dailyLifeState().enabled, true);
+        // The room tracker counts the optional checks in their rooms.
+        assert.ok(plugin.roomChecks(4).missing.includes("Daily Life - First Shower"));
+        assert.ok(plugin.roomChecks(2).missing.includes("Daily Life - First Night's Sleep"));
+        const bathroomLeft = plugin.roomChecks(4).left;
         shower();
+        assert.equal(plugin.roomChecks(4).left, bathroomLeft - 1);
         assert.deepEqual(socket.sent.at(-1), { cmd: "LocationChecks", locations: [593000201] });
         shower();
         assert.equal(socket.sent.filter(packet => packet.cmd === "LocationChecks").length, 1, "a second shower sends nothing");

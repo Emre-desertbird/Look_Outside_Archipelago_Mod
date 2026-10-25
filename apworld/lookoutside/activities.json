@@ -8,6 +8,7 @@
       "ap_id": 593000001,
       "region": "Apartment 33",
       "meals": 1,
+      "rooms": [3],
       "evidence": "Map003 e2 oven calls CE44; CE44 c329 sets cookedMeal59 once a meal is on the table"
     },
     {
@@ -16,6 +17,7 @@
       "ap_id": 593000003,
       "region": "Apartment 33",
       "meals": 3,
+      "rooms": [3],
       "evidence": "Same CE44 c329; meals are counted by the plugin because no native lifetime counter exists"
     },
     {
@@ -24,6 +26,7 @@
       "ap_id": 593000101,
       "region": "Apartment 33",
       "requires_region": "Apartment 37",
+      "rooms": [3],
       "evidence": "Map035 e22 p0 Crafting Kit sets238; Map003 e37 crafting table calls CE45; CE45 c126 consumes inputs and grants the result"
     }
   ],

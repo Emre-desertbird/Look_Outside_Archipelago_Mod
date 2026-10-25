@@ -242,9 +242,20 @@ class AccessTests(unittest.TestCase):
     def test_home_conversation_check_does_not_require_the_later_vending_purchase(self):
         calendar = {"Simple Keys (3)": 9, "Padlock Key": 1, "Basement Key": 1, "Rose": 1,
                     "Phone": 1, "Apt. 21 Key": 1}
-        self.assertTrue({"map006_event025_quest_pickup", "roach_leadership_crown",
+        self.assertTrue({"roach_leadership_crown",
                          "roach_leadership_sash", "pierre_clown_wig", "boss_drop_707_366"}
                         <= GRAPH.reachable(calendar)[1])
+        # Juicebox's card trick page needs power (havePower21), so logic waits for Power Restored.
+        self.assertNotIn("map006_event025_quest_pickup", GRAPH.reachable(calendar)[1])
+        self.assertIn("map006_event025_quest_pickup", GRAPH.reachable({**calendar, "Power Restored": 1})[1])
+
+    def test_audited_check_fixes_planter_voidblade(self):
+        planter = next(f for f in REGISTRY["quest_families"] if f["key"] == "map006_event013")
+        # The "It's gone" branch (Lyle not recruited yet) also resolves the planter check.
+        self.assertEqual(planter["terminals"], [{"map_id": 6, "event_id": 13, "page": 0, "command_index": 18,
+                                                 "command_code": 123, "parameters": ["A", 0]}])
+        voidblade = next(l for l in REGISTRY["locations"] if l["key"] == "map465_event002")
+        self.assertTrue(voidblade["missable"], "Voidblade only appears after the Gauntlet's final fight")
 
     def test_tomb_needs_crossword_access_and_charan_needs_rose(self):
         routes = {"Elevator Access": 1, "Power Restored": 1, "Pluto Disc": 1}

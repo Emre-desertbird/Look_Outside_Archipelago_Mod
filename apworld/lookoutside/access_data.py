@@ -421,7 +421,8 @@ add("Boiler Maze", "Map198 -> Map201 -> Map251 -> Map252 events14/15 -> Map258 e
 add("Apartment 33", "Map004 event20/Troop279 recruits the bathroom roaches; CE6 advances899 through1/3/5 after home conversations; Map003 event121 reconciles all leadership choices",
     "roach_leadership_crown", "roach_leadership_sash")
 add("Apartment 33", "Native visitor recruitment plus two CE6 increments of213 and six resets of400; Map002 e48 seventh conversation c638 earliest Day9 but visitor order can delay it; reserve Day15 to keep deadline prerequisites out",
-    "map006_event025_quest_pickup", rule=day(15))
+    # Map006 event25 page1 (the card trick) also needs havePower21 after the outage.
+    "map006_event025_quest_pickup", rule=all_of(day(15), item("Power Restored")))
 add("Floor 2", "Map007 event13 and other native shadow rooms use CE54 spawning and Troop18; real new days advance150; Map006 event40 reconciles the doorstep gift, independent of relationship-dependent item choice",
     "shadow_tongue", "map006_event040_complex", "map006_event040_quest_item",
     # Charan's reservation guarantees this route by Day5; allow three new days

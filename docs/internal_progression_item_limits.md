@@ -61,9 +61,9 @@ Kaeley/Pierre/Louis area. Use registry keys and native evidence for code changes
    They never prevent the player from advancing, force a hand-in, deliver items
    over an offline connection, or repair a missed native quest. Other players
    may need time to send an item before the local player advances.
-6. **Nine excluded checks.** No progression/useful items go in the eight
-   original-only teeth checks or Pierre's Old Mail Visit. This is not a blanket
-   exclusion of every timed quest.
+6. **Ten excluded checks.** No progression/useful items go in the eight
+   original-only teeth checks, Pierre's Old Mail Visit or the Gauntlet-gated
+   Voidblade. This is not a blanket exclusion of every timed quest.
 7. **Conservative timing.** A reward may be available earlier in actual play
    than its reserved logical date. Conversely, unmodeled visitor variation or
    player delay can make an actual route later. Full chronological playtesting
