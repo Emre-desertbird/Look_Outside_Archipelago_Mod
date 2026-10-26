@@ -8574,6 +8574,17 @@
         Object.freeze({"key": "daily_first_sleep", "name": "Daily Life - First Night's Sleep", "apId": 593000202, "trigger": {"common_event_id": 9, "command_index": 85, "switch_id": 603}, "rooms": [2]}),
         Object.freeze({"key": "daily_first_videogame", "name": "Daily Life - First Videogame", "apId": 593000203, "trigger": {"map_id": 3, "event_id": 13, "command_index": 108, "switch_id": 605}, "rooms": [3]}),
     ]);
+    const salvageMarkers = Object.freeze([
+        Object.freeze({"key": "boss_salvage_353", "mapId": 86, "eventId": 14, "selfSwitch": "B"}),
+        Object.freeze({"key": "boss_salvage_351", "switchId": 381}),
+        Object.freeze({"key": "boss_salvage_352", "switchId": 418}),
+        Object.freeze({"key": "boss_salvage_354", "switchId": 520}),
+        Object.freeze({"key": "boss_salvage_357", "switchId": 388}),
+        Object.freeze({"key": "boss_salvage_364", "mapId": 152, "eventId": 6, "selfSwitch": "C"}),
+        Object.freeze({"key": "boss_salvage_356", "switchId": 707}),
+        Object.freeze({"key": "boss_salvage_365", "switchId": 1140}),
+        Object.freeze({"key": "boss_salvage_355", "mapId": 270, "eventId": 6, "selfSwitch": "C"}),
+    ]);
     const companionVersion = 1;
     const companionUpgrades = Object.freeze([
         Object.freeze({"actorId": 2, "name": "Lyle", "key": "companion_join_02", "apId": 594000002, "passive": "Flash Photography", "summary": "Normal attacks may Blind (20%)", "effect": {"traits": [[32, 5, 0.2]]}}),
@@ -8640,6 +8651,9 @@
     let reconnectAttempt = 0;
     let lastServerUrl = "ws://localhost:38281";
     let lastSlotName = "";
+    // Last successful connection (settings and slot), kept in memory only so a
+    // loaded save of the same slot can reconnect; cleared by Disconnect.
+    let resumeConnection = null;
     let clientUuid = null;
     let pendingBattleSources = [];
     let battleSources = [];
@@ -9510,6 +9524,7 @@
     }
 
     function disconnectFromServer() {
+        resumeConnection = null;
         connectionGeneration++;
         cancelReconnect();
         const socket = connection;
@@ -10265,6 +10280,7 @@
                         connectionState = "connected";
                         connectionError = null;
                         rememberConnection(options.url, options.name);
+                        resumeConnection = { options, identity: { ...identity } };
                         reconnectAttempt = 0;
                         active = true;
                         globalThis.$gameMap?.requestRefresh();
@@ -11157,8 +11173,22 @@
             contents?.switches || globalThis.$gameSwitches, Object.hasOwn(contents || {}, saveKey));
         const result = originalExtractSaveContents.apply(this, arguments);
         if (hasApSaveState || firstBindingEligible) resumedInterpreters = mapInterpreters(contents.map);
+        resumeAfterLoad();
         return result;
     };
+
+    // Loading a save (e.g. after a game over) resets the session and closes the
+    // socket; reconnect when the save belongs to the slot we were connected to.
+    function resumeAfterLoad() {
+        const resume = resumeConnection;
+        if (!resume || !identity || identity.seedName !== resume.identity.seedName ||
+            identity.team !== resume.identity.team || identity.slot !== resume.identity.slot) return;
+        try {
+            connectForDevelopment(resume.options);
+        } catch (error) {
+            addLog([{ text: `Reconnect after loading failed: ${error.message}`, tone: "error" }], "local");
+        }
+    }
 
     const sceneLoad = globalThis.Scene_Load?.prototype;
     if (sceneLoad?.onLoadFailure) {
@@ -11177,6 +11207,7 @@
             if (saveError) return;
             restoreInterpreterSources();
             const result = originalSceneMapUpdate.apply(this, arguments);
+            recoverSalvageChecks();
             deliverPendingItems();
             updatePowerPresentation();
             updateDeliveryPresentation();
@@ -11191,6 +11222,49 @@
             if (hudElement) hudElement.style.display = "none";
             if (trackerElement) trackerElement.style.display = "none";
             return originalMapTerminate?.apply(this, arguments);
+        };
+    }
+
+    // Scene_Map.create reloads $dataMap after every battle or menu, so an event
+    // that is still running keeps its old command list and stops matching its
+    // source by identity (e.g. boss salvage after the fight). Point it at the
+    // same page of the fresh copy, but only when the contents are identical.
+    function rebindInterpreterLists(oldDataMap) {
+        const events = globalThis.$dataMap?.events;
+        if (!oldDataMap?.events || !events || oldDataMap === globalThis.$dataMap || !globalThis.$gameMap) return;
+        for (const it of mapInterpreters($gameMap)) {
+            if (!it._list || it._mapId !== $gameMap.mapId()) continue;
+            const pageIndex = oldDataMap.events[it._eventId]?.pages?.findIndex(page => page.list === it._list) ?? -1;
+            const list = pageIndex >= 0 ? events[it._eventId]?.pages?.[pageIndex]?.list : null;
+            if (list && JSON.stringify(list) === JSON.stringify(it._list)) it._list = list;
+        }
+    }
+
+    // Before that rebind, salvage after a fight could be lost. Each salvage
+    // fight's defeated marker is set only in its victory branch, so a marker
+    // without its check is a missed check: send it now.
+    function recoverSalvageChecks() {
+        if (!active || !identity || !globalThis.$gameSwitches || !globalThis.$gameSelfSwitches) return;
+        for (const marker of salvageMarkers) {
+            if (checkedKeys.has(marker.key)) continue;
+            const defeated = marker.switchId !== undefined ? $gameSwitches.value(marker.switchId) :
+                $gameSelfSwitches.value([marker.mapId, marker.eventId, marker.selfSwitch]);
+            if (defeated) reconcileQuestTerminal(questTerminals.find(terminal => terminal.familyKey === marker.key));
+        }
+    }
+
+    if (sceneMap?.create && sceneMap?.onMapLoaded) {
+        let previousDataMap = null;
+        const originalSceneMapCreate = sceneMap.create;
+        sceneMap.create = function() {
+            previousDataMap = globalThis.$dataMap;
+            return originalSceneMapCreate.apply(this, arguments);
+        };
+        const originalOnMapLoaded = sceneMap.onMapLoaded;
+        sceneMap.onMapLoaded = function() {
+            if (!this._transfer) rebindInterpreterLists(previousDataMap);
+            previousDataMap = null;
+            return originalOnMapLoaded.apply(this, arguments);
         };
     }
 
@@ -11344,6 +11418,7 @@
         get nextItemIndex() { return nextItemIndex; },
         get connectionState() { return connectionState; },
         get connectionError() { return connectionError; },
+        disconnectFromServer() { disconnectFromServer(); },
         get goalCompleted() { return goalCompleted; },
         goalReleaseSummary() { return goalReleaseSummary(); },
         get elevatorFreakDefeated() { return elevatorFreakDefeated; },

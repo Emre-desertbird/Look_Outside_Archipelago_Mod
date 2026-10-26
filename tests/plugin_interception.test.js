@@ -149,6 +149,14 @@ const sceneChanges = [];
 class FakeGameoverScene { start() { this.started = true; } }
 globalThis.Scene_Gameover = FakeGameoverScene;
 globalThis.SceneManager = { goto(scene) { sceneChanges.push(scene); } };
+// Like MZ, a new map scene reloads $dataMap from disk (after a battle or menu).
+class FakeSceneMap {
+    create() { this._transfer = false; globalThis.$dataMap = JSON.parse(JSON.stringify(globalThis.$dataMap)); }
+    onMapLoaded() {}
+    update() {}
+    terminate() {}
+}
+globalThis.Scene_Map = FakeSceneMap;
 require("../game_plugin/LookOutsideArchipelago.js");
 const plugin = globalThis.LookOutsideArchipelago;
 const sliceSlotData = {
@@ -2526,4 +2534,99 @@ test("cancelling a waiting reconnect calls browser timers on the window, not the
     assert.deepEqual(cleared, [42]);
     DropSocket.instances.at(-1).close();
     DataManager.setupNewGame();
+});
+
+test("loading a save of the connected slot (e.g. after a game over) reconnects by itself", () => {
+    class ResumeSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; ResumeSocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    const options = { url: "ws://localhost:38281", name: "Emre", password: "secret", uuid: "resume-uuid",
+        WebSocketClass: ResumeSocket, autoReconnect: false };
+    DataManager.setupNewGame();
+    plugin.connectForDevelopment(options);
+    const first = ResumeSocket.instances.at(-1);
+    first.server({ cmd: "RoomInfo", seed_name: "seed-R" });
+    first.server({ cmd: "Connected", team: 0, slot: 2, checked_locations: [], slot_data: sliceSlotData });
+    const saved = DataManager.makeSaveContents();
+
+    DataManager.extractSaveContents(saved);
+    assert.equal(ResumeSocket.instances.length, 2, "loading opens a new connection");
+    const resumed = ResumeSocket.instances.at(-1);
+    assert.equal(first.readyState, 3);
+    assert.equal(resumed.url, "ws://localhost:38281");
+    resumed.server({ cmd: "RoomInfo", seed_name: "seed-R" });
+    assert.equal(resumed.sent[0].name, "Emre");
+    assert.equal(resumed.sent[0].password, "secret");
+    resumed.server({ cmd: "Connected", team: 0, slot: 2, checked_locations: [], slot_data: sliceSlotData });
+    assert.equal(plugin.connectionState, "connected");
+
+    // A save that was never bound to this slot does not connect anywhere.
+    DataManager.setupNewGame();
+    const fresh = DataManager.makeSaveContents();
+    DataManager.extractSaveContents(fresh);
+    assert.equal(ResumeSocket.instances.length, 2);
+
+    // After pressing Disconnect, loading stays offline.
+    plugin.disconnectFromServer();
+    DataManager.extractSaveContents(saved);
+    assert.equal(ResumeSocket.instances.length, 2);
+    assert.equal(plugin.connectionState, "disconnected");
+    DataManager.setupNewGame();
+});
+
+test("boss salvage is still sent when the map data reloads after the fight", () => {
+    // Cop car (Map086 event58 page3): End Branch 19 follows the Audrey party check.
+    const list = Array.from({ length: 30 }, () => ({ code: 0, indent: 0, parameters: [] }));
+    list[19] = { code: 412, indent: 2, parameters: [] };
+    const pages = [0, 1, 2, 3].map(index => ({ list: index === 3 ? list : [{ code: 0, indent: 0, parameters: [] }] }));
+    const oldMap = globalThis.$gameMap, oldDataMap = globalThis.$dataMap;
+    try {
+        DataManager.setupNewGame();
+        plugin.bindIdentityForDevelopment("salvage-reload", 0, 1);
+        plugin.activateForDevelopment();
+        globalThis.$dataMap = { events: { 58: { pages } } };
+        const it = new FakeInterpreter(86, 58, 3, 19, 412, []);
+        it._list = list;
+        globalThis.$gameMap = { mapId: () => 86, event: id => (id === 58 ? {} : null), _interpreter: it,
+            _events: [], _commonEvents: [], requestRefresh() {} };
+        // Back from the battle: a fresh copy of the map replaces the running page's list.
+        const scene = new Scene_Map();
+        scene.create();
+        assert.notEqual(globalThis.$dataMap.events[58].pages[3].list, list);
+        scene.onMapLoaded();
+        assert.equal(it._list, globalThis.$dataMap.events[58].pages[3].list);
+        it.executeCommand();
+        assert.ok(plugin.checkedKeys().includes("boss_salvage_351"));
+    } finally {
+        globalThis.$gameMap = oldMap;
+        globalThis.$dataMap = oldDataMap;
+        DataManager.setupNewGame();
+    }
+});
+
+test("a salvage boss beaten while the check was lost is recovered on the map", () => {
+    const oldSelf = globalThis.$gameSelfSwitches;
+    const selfOn = new Set(["270,6,C"]);
+    globalThis.$gameSelfSwitches = { value: key => selfOn.has(key.join()) };
+    try {
+        DataManager.setupNewGame();
+        plugin.bindIdentityForDevelopment("salvage-recovery", 0, 1);
+        plugin.activateForDevelopment();
+        $gameSwitches.setValue(381, true);   // cop car defeated (victory branch only)
+        messages.length = 0;
+        new Scene_Map().update();
+        assert.deepEqual(plugin.checkedKeys().filter(key => key.startsWith("boss_salvage")).sort(),
+            ["boss_salvage_351", "boss_salvage_355"]);
+        assert.equal(messages.filter(text => text === "Archipelago: boss salvage checked.").length, 2);
+        new Scene_Map().update();
+        assert.equal(messages.length, 2, "recovered checks are not repeated");
+    } finally {
+        $gameSwitches.setValue(381, false);
+        globalThis.$gameSelfSwitches = oldSelf;
+        DataManager.setupNewGame();
+    }
 });

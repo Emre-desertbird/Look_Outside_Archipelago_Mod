@@ -241,7 +241,7 @@ All seven rows are **route dependent**.
 ## Progression-classified items with no direct rule — 9 item types
 
 Each item below still contributes to the 64-name/81-copy progression pool and
-cannot be placed in the nine excluded locations. None directly gates a current
+cannot be placed in the ten excluded locations. None directly gates a current
 AP entrance, check, calendar event, or the generic ending proof. There is **no
 item-specific deadline guarantee** for its native use. Do not infer otherwise
 from its classification or the word "Key" in its name.

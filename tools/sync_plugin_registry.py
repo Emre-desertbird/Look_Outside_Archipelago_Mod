@@ -153,6 +153,24 @@ def render(data: dict, activities: dict, companions: dict, supplies: dict, daily
                  "trigger": location["trigger"], "rooms": location.get("rooms", [])}
         lines.append("        Object.freeze(" + json.dumps(entry, ensure_ascii=False) + "),")
     lines.append("    ]);")
+    # Each salvage fight's defeated marker (set only in its victory branch).
+    lines.append("    const salvageMarkers = Object.freeze([")
+    markers = []
+    for location in data["locations"]:
+        for source in [location, *location.get("source_variants", [])]:
+            salvage = source.get("boss_salvage")
+            if not salvage:
+                continue
+            if salvage["completion_code"] == 121:
+                marker = {"key": location["key"], "switchId": salvage["completion_parameters"][0]}
+            else:
+                marker = {"key": location["key"], "mapId": source["map_id"], "eventId": source["event_id"],
+                          "selfSwitch": salvage["completion_parameters"][0]}
+            if marker not in markers:
+                markers.append(marker)
+    for marker in markers:
+        lines.append("        Object.freeze(" + json.dumps(marker) + "),")
+    lines.append("    ]);")
     lines.append(f"    const companionVersion = {companions['feature_version']};")
     lines.append("    const companionUpgrades = Object.freeze([")
     for companion in companions["companions"]:
