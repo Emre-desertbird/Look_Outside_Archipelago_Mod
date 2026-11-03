@@ -8673,6 +8673,8 @@
     let receivedLog = [];
     let knownCheckedIds = new Set();
     let knownMissingIds = null;
+    // The slot the server's check lists describe; they survive reconnects and reloads of that slot.
+    let knownSlot = null;
     let hudElement = null;
     let hudSignature = "";
 
@@ -8772,8 +8774,6 @@
         slotInfo = {};
         playerAliases = {};
         receivedLog = [];
-        knownCheckedIds = new Set();
-        knownMissingIds = null;
         hudElement?.remove();
         hudElement = null;
         hudSignature = "";
@@ -8839,6 +8839,17 @@
         throw new Error(saveError);
     }
 
+    function slotTag(id) {
+        return id ? `${id.seedName}/${id.team}/${id.slot}` : null;
+    }
+
+    function keepServerViewForSlot() {
+        if (knownSlot === slotTag(identity)) return;
+        knownCheckedIds = new Set();
+        knownMissingIds = null;
+        knownSlot = null;
+    }
+
     function restoreSession(saved, start, switches, present) {
         resetSession();
         firstBindingEligible = start?.schema === 1 && compatibleStamp(start.compatibility) && start.eligible === true &&
@@ -8892,6 +8903,7 @@
         }
         checkedKeys = new Set(saved.checkedKeys);
         identity = saved.identity && { ...saved.identity };
+        keepServerViewForSlot();
         nextItemIndex = saved.nextItemIndex;
         pendingItems = saved.pendingItems.map(entry => ({ index: entry.index, item: { ...entry.item } }));
         active = identity !== null;
@@ -9559,7 +9571,8 @@
             state: connectionState,
             checked: serverTotal === null ? checkedKeys.size : knownCheckedIds.size,
             total: serverTotal ?? localTotal,
-            unsynced: connectionState === "connected" ? 0 : unsynced,
+            // Without a server reply for this slot we can't tell which checks are new.
+            unsynced: connectionState === "connected" || !knownMissingIds ? 0 : unsynced,
             received: nextItemIndex,
             waiting: pendingItems.length,
             goal: !goalCompleted ? "Not yet" : serverMissingChecks === 0 ? "Complete" : "Complete, releasing",
@@ -10136,8 +10149,6 @@
         connectionError = null;
         serverReleasePermission = null;
         serverMissingChecks = null;
-        knownCheckedIds = new Set();
-        knownMissingIds = null;
 
         function scheduleReconnect(retryOptions = options) {
             if (options.autoReconnect === false) return;
@@ -10269,6 +10280,8 @@
                         if (companionChecks) {
                             for (const entry of companionUpgrades) keyByLocationId.set(entry.apId, entry.key);
                         }
+                        keepServerViewForSlot();
+                        knownSlot = slotTag(identity);
                         knownMissingIds = new Set(Array.isArray(packet.missing_locations) ? packet.missing_locations : []);
                         acceptServerChecks(packet.checked_locations || []);
                         rememberPlayers(packet);
@@ -11152,6 +11165,7 @@
     dataManager.setupNewGame = function() {
         const result = originalSetupNewGame.apply(this, arguments);
         resetSession();
+        keepServerViewForSlot();
         firstBindingEligible = true;
         return result;
     };
@@ -11396,6 +11410,7 @@
             };
         },
         checkedKeys() { return [...checkedKeys]; },
+        statusForDevelopment() { return statusSnapshot(); },
         identity() { return identity && { ...identity }; },
         pendingItems() { return pendingItems.map(entry => ({ index: entry.index, item: { ...entry.item } })); },
         deliverPendingForDevelopment() {

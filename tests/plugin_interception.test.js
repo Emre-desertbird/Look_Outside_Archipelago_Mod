@@ -2578,6 +2578,38 @@ test("loading a save of the connected slot (e.g. after a game over) reconnects b
     DataManager.setupNewGame();
 });
 
+test("checks the server already has are not counted as still to send while offline", () => {
+    class StatusSocket {
+        static instances = [];
+        constructor(url) { this.url = url; this.readyState = 1; this.sent = []; StatusSocket.instances.push(this); }
+        send(payload) { this.sent.push(...JSON.parse(payload)); }
+        close() { this.readyState = 3; this.onclose?.(); }
+        server(...packets) { this.onmessage({ data: JSON.stringify(packets) }); }
+    }
+    const [sentKey, offlineKey] = Object.keys(plugin.developmentData().locationIds);
+    const ids = plugin.developmentData().locationIds;
+    DataManager.setupNewGame();
+    plugin.connectForDevelopment({ url: "ws://localhost:38281", name: "Emre", uuid: "status-uuid",
+        WebSocketClass: StatusSocket, autoReconnect: false });
+    const socket = StatusSocket.instances.at(-1);
+    socket.server({ cmd: "RoomInfo", seed_name: "seed-S" });
+    socket.server({ cmd: "Connected", team: 0, slot: 3, checked_locations: [ids[sentKey]],
+        missing_locations: [ids[offlineKey]], slot_data: sliceSlotData });
+    const saved = DataManager.makeSaveContents();
+    plugin.disconnectFromServer();
+    assert.equal(plugin.statusForDevelopment().unsynced, 0, "a disconnect keeps the server's view");
+
+    // Reloading the same slot (e.g. after a death) keeps it too; only the new check is waiting.
+    saved.lookOutsideArchipelago.checkedKeys.push(offlineKey);
+    DataManager.extractSaveContents(saved);
+    assert.equal(plugin.connectionState, "disconnected");
+    assert.equal(plugin.statusForDevelopment().unsynced, 1);
+
+    // A different save has no server reply yet, so nothing is claimed as unsent.
+    DataManager.setupNewGame();
+    assert.equal(plugin.statusForDevelopment().unsynced, 0);
+});
+
 test("boss salvage is still sent when the map data reloads after the fight", () => {
     // Cop car (Map086 event58 page3): End Branch 19 follows the Audrey party check.
     const list = Array.from({ length: 30 }, () => ({ code: 0, indent: 0, parameters: [] }));
