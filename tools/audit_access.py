@@ -19,6 +19,11 @@ def load_access():
     return importlib.import_module(package.__name__ + ".access_data").GRAPH
 
 
+def load_quest_rewards():
+    load_access()
+    return importlib.import_module("lookoutside_access_audit.quest_rewards").quest_reward_names
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--require-complete", action="store_true")

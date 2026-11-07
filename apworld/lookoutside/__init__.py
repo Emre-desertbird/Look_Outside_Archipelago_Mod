@@ -10,6 +10,7 @@ from .access import item, region
 from .access_data import GRAPH
 from .chronology import LOGIC_VERSION, day
 from .options import LookOutsideOptions
+from .quest_rewards import quest_reward_names
 
 
 DATA = json.loads(resources.files(__package__).joinpath("vertical_slice.json").read_text(encoding="utf-8"))
@@ -26,6 +27,7 @@ COMPANION_ITEMS = [{**row["item"], "quantity": 1} for row in COMPANIONS["compani
 LOCATIONS = {entry["name"]: entry["ap_id"]
              for entry in DATA["locations"] + ACTIVITIES["locations"] + COMPANION_LOCATIONS + DAILY_LIFE["locations"]}
 ITEMS = {entry["name"]: entry["ap_id"] for entry in DATA["items"] + COMPANION_ITEMS + [SUPPLY_CACHE]}
+QUEST_REWARD_LOCATIONS = quest_reward_names(DATA)
 ITEM_CLASSIFICATIONS = {
     entry["name"]: {
         "progression": ItemClassification.progression,
@@ -97,6 +99,8 @@ class LookOutsideWorld(World):
             parent.locations.append(location)
             if entry.get("missable"):
                 location.progress_type = LocationProgressType.EXCLUDED
+            elif entry["name"] in QUEST_REWARD_LOCATIONS:
+                location.item_rule = lambda candidate: not candidate.advancement
         optional_rows = ((ACTIVITIES["locations"] if self.options.activity_checks else []) +
                          (DAILY_LIFE["locations"] if self.options.daily_life_checks else []))
         for entry in optional_rows:
@@ -141,6 +145,22 @@ class LookOutsideWorld(World):
     def create_item(self, name: str) -> LookOutsideItem:
         return LookOutsideItem(name, ITEM_CLASSIFICATIONS[name],
                                self.item_name_to_id[name], self.player)
+
+    def fill_hook(self, progitempool, usefulitempool, filleritempool, fill_locations) -> None:
+        # Before the main fill, give each character-quest check a useful item (see quest_rewards.py).
+        targets = [location for location in fill_locations
+                   if location.player == self.player and location.name in QUEST_REWARD_LOCATIONS]
+        self.random.shuffle(targets)
+        for location in targets:
+            candidates = [entry for entry in usefulitempool if location.can_fill(self.multiworld.state, entry, False)]
+            if not candidates:
+                break
+            others = [entry for entry in candidates if entry.player != self.player]
+            chosen = self.random.choice(others or candidates)
+            usefulitempool.remove(chosen)
+            fill_locations.remove(location)
+            self.multiworld.push_item(location, chosen, collect=False)
+            location.locked = True
 
     def get_filler_item_name(self) -> str:
         # Used when a generic AP option removes an item from the pool.

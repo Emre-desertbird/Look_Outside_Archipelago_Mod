@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 from zipfile import ZipFile
 
-from audit_access import PROJECT, load_access
+from audit_access import PROJECT, load_access, load_quest_rewards
 
 
 def verify(path):
@@ -29,6 +29,7 @@ def verify(path):
                       for row in companions["companions"]}
     graph = load_access()
     graph.validate(registry)
+    quest_rewards = load_quest_rewards()(registry)
     definitions = {row["name"]: row for row in registry["items"] + companion_items + [supply_cache]}
     # Optional activity checks are excluded (filler only) and gated by regions alone.
     daily_life = json.loads((PROJECT / "apworld/lookoutside/daily_life.json").read_text(encoding="utf-8"))
@@ -71,6 +72,8 @@ def verify(path):
                     raise ValueError(f"Duplicate placement: {name}")
                 if location.get("missable") and definitions[reward[1]]["classification"] != "filler":
                     raise ValueError(f"Non-filler item on excluded location: {line}")
+                if location["name"] in quest_rewards and definitions[reward[1]]["classification"] != "useful":
+                    raise ValueError(f"Character-quest location without a useful item: {line}")
                 placements[source] = reward
                 break
     activity_keys = {row["key"]: row for row in activity_rows.values()}
