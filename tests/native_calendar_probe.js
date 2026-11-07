@@ -92,7 +92,8 @@ module.exports = function nativeCalendarProbe() {
         caller.setup([{ code: 117, indent: 0, parameters: [4] }], 66);
         caller.executeCommand();
         const clock = caller._childInterpreter;
-        if (!clock) return;
+        let newDays = 0;
+        if (!clock) return newDays;
         clock.executeCommand();
         clock.executeCommand(); // Clear the previous HourPassed newDay request.
         clock._index = 52;
@@ -107,62 +108,33 @@ module.exports = function nativeCalendarProbe() {
             clock.executeCommand();
             if ($gameMessage.isBusy()) $gameMessage.clear();
             const child = clock._childInterpreter;
-            if (child) {
+            if (child && child._list === $dataCommonEvents[6].list) {
+                newDays++; // Vanilla newDay is requested; its story effects are outside this probe.
+                clock._childInterpreter = null;
+            } else if (child) {
                 assert.equal(child._list, $dataCommonEvents[5].list);
                 child._index = 291;
                 while (child._index < 295) child.executeCommand();
                 clock._childInterpreter = null;
             }
         }
+        return newDays;
     }
+    // Time runs naturally: midnight counts the day and 04:00 requests vanilla newDay,
+    // on Day 15 as on any other day. Queued action time is never discarded.
     const clockResults = [];
-    for (const day of [7, 15]) for (const split of [false, true]) {
+    for (const day of [7, 15]) {
         setup(true, day);
-        const quests = [[899, 2], [900, 7], [617, 4], [904, 1], [905, 1], [906, 1]];
-        for (const [id, stage] of quests) $gameVariables.setValue(id, stage);
         $gameVariables.setValue(16, 23);
-        $gameVariables.setValue(17, split ? 50 : 40);
-        if (split) {
-            passTime(20);
-            assert.equal(ap.pendingDayRollover, true);
-            assert.equal(ap.dayHold, false);
-            assert.equal($gameVariables.value(16), 0);
-            assert.equal($gameVariables.value(17), 10);
-            passTime(480);
-        } else passTime(480);
-        assert.equal($gameVariables.value(15), day);
-        assert.equal($gameVariables.value(16), 4);
-        assert.equal($gameVariables.value(17), 0);
-        assert.equal(ap.dayHold, true);
-        assert.equal(ap.pendingDayRollover, false);
-        $gameVariables.setValue(116, 20);
-        passTime(9000);
-        assert.equal($gameVariables.value(19), 0);
-        assert.equal($gameVariables.value(116), 0);
-        assert.equal($gameVariables.value(16), 4);
-        const saved = DataManager.makeSaveContents();
-        DataManager.extractSaveContents(saved);
-        assert.equal(ap.dayHold, true);
-        // Home autoruns are not part of this focused event fixture.
-        $gameMap.events().forEach(event => event.clearStartingFlag());
-        assert.equal($gameMap.isEventRunning(), false);
-        while ($gameTemp.isCommonEventReserved()) $gameTemp.retrieveCommonEvent();
-        if (day < 15) {
-            ap.advanceDayForDevelopment();
-            assert.equal($gameVariables.value(15), day + 1);
-            assert.equal($gameTemp.retrieveCommonEvent(), $dataCommonEvents[6]);
-            passTime(20);
-            assert.equal($gameVariables.value(16), 4);
-            assert.equal($gameVariables.value(17), 20);
-            assert.equal(ap.dayHold, false);
-        } else {
-            assert.throws(() => ap.advanceDayForDevelopment(), /final supported/);
-            assert.equal($gameTemp.isCommonEventReserved(), false, "no synthetic new day at Day15");
-        }
-        for (const [id, stage] of quests) {
-            assert.equal($gameVariables.value(id), stage, `held time must not advance quest ${id}`);
-        }
-        clockResults.push({ day, split });
+        $gameVariables.setValue(17, 40);
+        const newDays = passTime(480);
+        assert.equal($gameVariables.value(15), day + 1);
+        assert.equal(newDays, 1);
+        assert.equal($gameVariables.value(16), 7);
+        assert.equal($gameVariables.value(17), 40);
+        const saved = DataManager.makeSaveContents().lookOutsideArchipelago;
+        assert.deepEqual([saved.dayHold, saved.pendingDayRollover], [false, false]);
+        clockResults.push({ day });
     }
     // Preserve Leigh's real Day15 dialogue cutoff, even with a late quest stage.
     for (const day of [14, 15]) {

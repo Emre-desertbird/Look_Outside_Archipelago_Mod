@@ -3,8 +3,8 @@
 ## Confirmed design
 
 Quest timing stays vanilla: fixed-date events, real new-day waits, and dialogue
-cutoffs are preserved. The existing manual day advancement and Day15 cap stay
-in place. There are no extra Day15 cycles, quest-stage writes, or wait bypasses.
+cutoffs are preserved. Days change naturally, as in vanilla: 0.0.7 removed the
+4 a.m. hold and manual day advancement. There are no quest-stage writes or wait bypasses.
 
 Players who reach Day15 with unfinished quests or no other available ending can
 take the generic home-door ending, **No Going Back**. It counts as the AP goal

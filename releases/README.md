@@ -1,6 +1,6 @@
 # Development packages
 
-Download [LookOutsideAP-0.0.6-dev74.zip](LookOutsideAP-0.0.6-dev74.zip), extract it
+Download [LookOutsideAP-0.0.7-dev74.zip](LookOutsideAP-0.0.7-dev74.zip), extract it
 into a writable folder, and follow the included `README.md`.
 
 This is a **development playtest build** of this fork, for Survivor Mode (Normal

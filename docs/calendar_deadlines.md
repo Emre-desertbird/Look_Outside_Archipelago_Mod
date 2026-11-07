@@ -105,7 +105,7 @@ native early completion remains possible and does not wait for a synthetic event
   already inside can keep collecting; this is not an assumed re-entry route.
 - **Crossword:** Map009 e12 gives the vanilla book. Map003 e20 p0 c0-3 disables
   work on Day15. Repeated local hourly sessions before advancing past Day14
-  finish491=100 and reveal493, including during the existing manual day hold.
+  finish491=100 and reveal493.
   Only crossword access must precede Day15; Pluto Storage can be unlocked
   later. No code guessing or friendly kill is assumed.
 - **Louis:** Day3 apartment access, victory setting904=4, a CE6 for halves,

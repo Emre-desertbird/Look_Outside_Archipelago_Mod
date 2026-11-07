@@ -208,17 +208,11 @@ The static validator also checks the socket callers and powered puzzle path.
   server still has unchecked locations, the client follows the goal with
   `!release` and merges the server's acknowledgement. Disabled release is shown
   in Status. See `ending_release.md` for online and offline tests from zero checks.
-- A bound AP save suppresses the two Day increment commands in `TimePasses`,
-  then holds its `newDay` call at the normal 4 a.m. boundary. While held,
-  further `TimePasses` common-event calls are suppressed and pending action/battle
-  minutes are cleared. Long actions are capped at 4 a.m. before native processing
-  so later hourly timers cannot run past the hold. The development API
-  `advanceDayForDevelopment()` increments Day once and queues the vanilla
-  `newDay` common event. Day hold and pending rollover persist in saves.
-  The menu shows "Go to Next Day" during a hold. This path still needs an
-  interactive staged-game check before it is considered stable. On Day 15 the
-  hold remains in place and the menu omits the advance action, so the player
-  can pursue a normal ending without entering unsupported Day 16 content.
+- Since 0.0.7, days change naturally at 4 a.m., as in vanilla. The earlier day
+  hold (suppressed Day increments, a held `newDay`, discarded action time and the
+  "Go to Next Day" menu entry) was removed once character-quest checks stopped
+  holding progression. A save made during the old hold finishes its pending Day
+  increment and `newDay` once after loading.
   Quest dates, new-day waits, and dialogue cutoffs remain vanilla. There are no
   extra Day15 new-day cycles or synthetic quest advancement. The generic Day15
   ending completes the AP goal and releases unfinished checks if the room allows

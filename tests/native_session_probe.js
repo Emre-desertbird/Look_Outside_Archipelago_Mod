@@ -118,7 +118,7 @@ module.exports = async function nativeSessionProbe() {
             } else {
                 loaded.executeCommand();
                 if (kind === "clock") {
-                    assert.equal($gameVariables.value(15), 7); assert.equal(ap.pendingDayRollover, true);
+                    assert.equal($gameVariables.value(15), 8); // The resumed clock counts the day naturally.
                 } else {
                     assert.equal(ap.checkedKeys().includes("home_bookshelf_screamatorium"), kind === "reward");
                     assert.equal($gameParty.numItems($dataItems[423]), kind === "bare-copy" ? 1 : 0);

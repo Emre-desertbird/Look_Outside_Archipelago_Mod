@@ -15,7 +15,7 @@
     const auditedBuild = Object.freeze({ gameId: 51778622, versionId: 74642914 });
     const developmentRegistryVersion = 74;
     // Mod release; matches apworld/lookoutside/archipelago.json world_version.
-    const pluginVersion = "0.0.6";
+    const pluginVersion = "0.0.7";
     if (globalThis.LookOutsideArchipelago) {
         throw new Error(`${pluginName} loaded more than once`);
     }
@@ -8643,8 +8643,8 @@
     let deathLinkFinalBlow = false;
     let deathLinkGameOver = false;
     let lastDeathSent = 0;
-    let pendingDayRollover = false;
-    let dayHold = false;
+    // A save from a version with the 4 a.m. day hold may still wait for its new day.
+    let carriedRollover = null;
     let powerState = newPowerState();
     let reconnectTimer = null;
     let connectionGeneration = 0;
@@ -8808,8 +8808,7 @@
         pendingDeaths = [];
         deathLinkFinalBlow = false;
         deathLinkGameOver = false;
-        pendingDayRollover = false;
-        dayHold = false;
+        carriedRollover = null;
         powerState = newPowerState();
         active = false;
         checkHandler = null;
@@ -8915,8 +8914,9 @@
         companionChecks = savedCompanions;
         ownedUpgrades = new Set(savedUpgrades);
         dailyLifeChecks = savedDailyLife;
-        pendingDayRollover = saved.pendingDayRollover;
-        dayHold = saved.dayHold;
+        // Held at 4 a.m.: the day count and newDay are both waiting. Midnight
+        // passed but 4 a.m. not yet: only the day count is waiting.
+        carriedRollover = saved.dayHold ? "newDay" : saved.pendingDayRollover ? "dayCount" : null;
         powerState = { ...saved.powerState, notices: saved.powerState.notices.slice() };
     }
 
@@ -8935,8 +8935,9 @@
             companionChecks,
             ownedUpgrades: [...ownedUpgrades].sort((a, b) => a - b),
             dailyLifeChecks,
-            pendingDayRollover,
-            dayHold,
+            // Kept so saves still load in versions that had the 4 a.m. day hold.
+            pendingDayRollover: false,
+            dayHold: false,
             powerState: { ...powerState, notices: powerState.notices.slice() },
         };
     }
@@ -8956,28 +8957,6 @@
             globalThis.$dataSystem?.versionId === auditedBuild.versionId;
     }
 
-    function clearHeldTime() {
-        // Actions and battles queue elapsed minutes before calling TimePasses.
-        // Discard that time during a hold so it cannot spill into the next day.
-        $gameVariables.setValue(19, 0);
-        $gameVariables.setValue(116, 0);
-    }
-
-    function limitTimeToRollover() {
-        // HourPassed requests newDay at 04:00, four hours after the calendar
-        // increment. Let the native hourly processing reach that boundary once.
-        const hour = $gameVariables.value(16);
-        const minute = $gameVariables.value(17);
-        if (!Number.isInteger(hour) || hour < 0 || hour > 23 ||
-            !Number.isInteger(minute) || minute < 0 || minute > 59) return;
-        const untilRollover = ((28 - hour) % 24 || 24) * 60 - minute;
-        const queued = $gameVariables.value(19) + Math.max(0, $gameVariables.value(116));
-        if (queued > untilRollover) {
-            $gameVariables.setValue(19, untilRollover);
-            $gameVariables.setValue(116, 0);
-        }
-    }
-
     function isHomeDoorCommand(interpreter, pageIndex, index, code, params) {
         const event = globalThis.$gameMap?.event(9);
         const list = event?.event()?.pages?.[pageIndex]?.list;
@@ -8987,34 +8966,12 @@
             command?.code === code && JSON.stringify(command.parameters) === JSON.stringify(params);
     }
 
-    function advanceDayForDevelopment() {
-        if (!active || !dayHold || !identity) throw new Error("No bound Archipelago day hold");
-        if (globalThis.$dataSystem?.advanced?.gameId !== auditedBuild.gameId ||
-            globalThis.$dataSystem?.versionId !== auditedBuild.versionId) {
-            throw new Error("Installed game build differs from audited build");
-        }
-        if (globalThis.$gameMap?.isEventRunning?.() ||
-            globalThis.$gameTemp?.isCommonEventReserved?.()) {
-            throw new Error("Wait for the current game event to finish");
-        }
-        if (!globalThis.$dataCommonEvents?.[6]?.list ||
-            !globalThis.$gameVariables?.setValue ||
-            !globalThis.$gameTemp?.reserveCommonEvent) {
-            throw new Error("Vanilla newDay event is unavailable");
-        }
-        const oldDay = $gameVariables.value(15);
-        if (!Number.isSafeInteger(oldDay) || oldDay < 0) {
-            throw new Error("Current day is invalid");
-        }
-        if (oldDay >= 15) {
-            throw new Error("Day 15 is the final supported Archipelago day");
-        }
-        clearHeldTime();
-        $gameVariables.setValue(15, oldDay + 1);
-        $gameTemp.reserveCommonEvent(6);
-        dayHold = false;
-        pendingDayRollover = false;
-        console.info(`[${pluginName}] advancing from Day ${oldDay} to Day ${oldDay + 1}`);
+    function finishCarriedRollover() {
+        if (!carriedRollover || !calendarEnabled() || !globalThis.$gameMap || !globalThis.$gameTemp ||
+            $gameMap.isEventRunning() || $gameTemp.isCommonEventReserved()) return;
+        $gameVariables.setValue(15, $gameVariables.value(15) + 1);
+        if (carriedRollover === "newDay") $gameTemp.reserveCommonEvent(6);
+        carriedRollover = null;
     }
 
     function connectionUuid() {
@@ -9334,8 +9291,7 @@
         const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
         const html =
             `<div style="display:flex;align-items:center;gap:8px">${clockSvg(hour, minute)}` +
-            `<div style="flex:1"><div style="font-size:13px;font-weight:600">Day ${day} · ${time}` +
-            `${dayHold ? ' <span style="color:#f1cc82;font-weight:400">(held)</span>' : ""}</div>` +
+            `<div style="flex:1"><div style="font-size:13px;font-weight:600">Day ${day} · ${time}</div>` +
             `<div style="margin-top:3px;height:4px;background:#ffffff22;border-radius:2px;overflow:hidden">` +
             `<div style="width:${percent.toFixed(1)}%;height:100%;background:linear-gradient(90deg,#8a6a33,#d9b978)"></div></div>` +
             `<div style="font-size:11px;color:#c9c2b3;margin-top:2px">${snapshot.checked} / ${snapshot.total} checks` +
@@ -9376,9 +9332,6 @@
                 (dailyLifeChecks ? dailyLifeLocations.length : 0)}; pending items: ${pendingItems.length}`,
             ownedUpgrades.size ? `Companion upgrades: ${companionUpgrades
                 .filter(entry => ownedUpgrades.has(entry.actorId)).map(entry => entry.name).join(", ")}` : "",
-            dayHold ? `Day ${globalThis.$gameVariables?.value(15)} is held` : "Day is not held",
-            dayHold && globalThis.$gameVariables?.value(15) >= 15
-                ? "Day 15 is final. Finish an ending to release unfinished checks." : "",
             goalReleaseSummary(),
             connectionError || "",
         ].filter(Boolean).join("\n");
@@ -9406,14 +9359,13 @@
             ...entry,
             // The door closes when approached after noon. A player still inside
             // can finish collecting; report risk rather than declaring it lost.
-            atRisk: day > entry.day || (day === entry.day && (hour >= entry.hour || dayHold)) ||
+            atRisk: day > entry.day || (day === entry.day && hour >= entry.hour) ||
                 !!globalThis.$gameSwitches?.value(entry.closed_switch),
         }));
     }
 
     // Native quest cutoffs audited in docs/calendar_deadlines.md. Each closes at
-    // the start of `day`; `warnFrom` adds earlier Next Day warnings for quests
-    // that need several days or many in-game hours. Reads native state only.
+    // the start of `day`. Reads native state only.
     function questDeadlines() {
         if (!active) return [];
         const day = globalThis.$gameVariables?.value(15) || 0;
@@ -9429,21 +9381,21 @@
         const warnings = [];
         const charanKeys = ["map339_event012", "map401_event007_quest_item"];
         if (!switchOn(680) && unchecked(charanKeys)) {
-            warnings.push({ group: "Charan's Rose", day: 6, warnFrom: 4, checks: unchecked(charanKeys),
+            warnings.push({ group: "Charan's Rose", day: 6, checks: unchecked(charanKeys),
                 atRisk: day >= 6 || switchOn(1097),
                 short: holds(360) === false ? "find the Rose, give it by Day 5" : "give the Rose by Day 5", started: false,
                 text: "Give Charan the Rose in the basement pit by the end of Day 5. His cave opens " +
                     "the next day; the earthquake closes the basement on Day 7." +
                     (holds(360) === false ? "\nYou do not have the Rose yet." : "") });
         } else if (switchOn(680) && unchecked(["map401_event007_quest_item"])) {
-            warnings.push({ group: "Charan's Cave", day: 7, warnFrom: 0, checks: 1,
+            warnings.push({ group: "Charan's Cave", day: 7, checks: 1,
                 atRisk: day >= 7 || switchOn(1097), short: "visit his cave by Day 6", started: true,
                 text: "Follow Charan into his cave the day after giving him the Rose. " +
                     "The earthquake closes the basement on Day 7." });
         }
         const leighStage = variable(900);
         if (unchecked(["leighs_call_ring"]) && leighStage === 0) {
-            warnings.push({ group: "Leigh's Phone", day: 11, warnFrom: 8, checks: 1,
+            warnings.push({ group: "Leigh's Phone", day: 11, checks: 1,
                 atRisk: day >= 11,
                 short: holds(389) === false ? "find the Phone, bring it home by Day 10" : "bring the Phone home by Day 10",
                 started: false,
@@ -9460,7 +9412,7 @@
             steps.push(daysNeeded
                 ? `${daysNeeded} more new day${daysNeeded === 1 ? "" : "s"} needed; talk to Leigh at home before Day 15.`
                 : "Talk to Leigh at home about her phone before Day 15.");
-            warnings.push({ group: "Leigh's Phone", day: 15, warnFrom: Math.max(0, 14 - daysNeeded), checks: 1,
+            warnings.push({ group: "Leigh's Phone", day: 15, checks: 1,
                 atRisk: day + daysNeeded > 14, text: steps.join("\n"),
                 short: leighStage % 2 === 0 && leighStage < 9 ? "read the new phone message"
                     : daysNeeded ? `${daysNeeded} more new day${daysNeeded === 1 ? "" : "s"}` : "talk to Leigh at home",
@@ -9470,7 +9422,7 @@
             "wilhelmina_reward_hammer", "wilhelmina_reward_gun", "wilhelmina_reward_book"];
         const puzzles = variable(491);
         if (unchecked(wilhelminaKeys) === wilhelminaKeys.length && puzzles < 100) {
-            warnings.push({ group: "Crossword book", day: 15, warnFrom: 11, checks: wilhelminaKeys.length,
+            warnings.push({ group: "Crossword book", day: 15, checks: wilhelminaKeys.length,
                 atRisk: day >= 15, short: switchOn(237) ? `${puzzles} / 100 puzzles` : "pick up the book",
                 started: puzzles > 0,
                 text: `Finish all 100 crosswords at home before Day 15 (${puzzles} / 100 done). ` +
@@ -9480,12 +9432,10 @@
         return warnings;
     }
 
-    function deadlineSummary(advance) {
+    function deadlineSummary() {
         const remaining = remainingDeadlines();
-        const day = globalThis.$gameVariables?.value(15) || 0;
-        const relevant = advance ? remaining.filter(entry => entry.day <= day + 1) : remaining;
         const groups = new Map();
-        for (const entry of relevant) {
+        for (const entry of remaining) {
             if (!groups.has(entry.group)) groups.set(entry.group, []);
             groups.get(entry.group).push(entry);
         }
@@ -9495,10 +9445,8 @@
             return `${name}: ${entries.length} unchecked\n${warning}${first.description}\n` +
                 entries.map(entry => `• ${entry.name}`).join("\n");
         });
-        const quests = questDeadlines()
-            .filter(entry => !advance || entry.day <= day + 1 || day >= entry.warnFrom)
-            .map(entry => `${entry.group}: ${entry.checks} unchecked, closes on Day ${entry.day}\n` +
-                `${entry.atRisk ? "This may no longer be possible. " : ""}${entry.text}`);
+        const quests = questDeadlines().map(entry => `${entry.group}: ${entry.checks} unchecked, closes on Day ${entry.day}\n` +
+            `${entry.atRisk ? "This may no longer be possible. " : ""}${entry.text}`);
         return [...pickups, ...quests].join("\n\n");
     }
 
@@ -9576,7 +9524,7 @@
             received: nextItemIndex,
             waiting: pendingItems.length,
             goal: !goalCompleted ? "Not yet" : serverMissingChecks === 0 ? "Complete" : "Complete, releasing",
-            day: `Day ${day}, ${String(hour).padStart(2, "0")}:00${dayHold ? " (held)" : ""}`,
+            day: `Day ${day}, ${String(hour).padStart(2, "0")}:00`,
         };
     }
 
@@ -9625,12 +9573,11 @@
         #loa-ap-dialog .loa-error { color: #ffb9ad; }
         #loa-ap-dialog .loa-error:empty, #loa-ap-dialog .loa-note:empty { display: none; }
         #loa-ap-dialog details summary { cursor: pointer; }
-        #loa-ap-dialog .loa-deadlines { margin-top: 12px; color: #f1cc82; }
-        #loa-ap-dialog .loa-deadlines div, #loa-ap-dialog .loa-deadline-text { white-space: pre-wrap; font-size: 14px; margin-top: 8px; }
+        #loa-ap-dialog .loa-deadline-text { white-space: pre-wrap; font-size: 14px; margin-top: 8px; }
         #loa-ap-dialog .loa-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
             position: sticky; bottom: -18px; background: #16181d; padding: 8px 0; }`;
 
-    function showMenuDialog(scene, advance = false) {
+    function showMenuDialog(scene) {
         if (!globalThis.document?.createElement) return false;
         menuDialog?.close(false);
         const dialog = document.createElement("dialog");
@@ -9638,11 +9585,8 @@
         dialog.setAttribute("aria-labelledby", "loa-ap-heading");
         const tabs = [["overview", "Overview"], ["log", "Log"], ["items", "Items"],
             ["locations", "Locations"], ["deadlines", "Deadlines"], ["settings", "Settings"]];
-        dialog.innerHTML = `<style>${dialogStyle}</style><form>` + (advance
-            ? `<h2 id="loa-ap-heading">Go to Next Day</h2><p class="loa-description"></p>
-               <p class="loa-error" role="alert"></p>
-               <details class="loa-deadlines" hidden open><summary>Tracked deadlines (not a complete list)</summary><div></div></details>`
-            : `<div class="loa-head"><h2 id="loa-ap-heading">Archipelago</h2><span class="loa-pill" role="status"></span></div>
+        dialog.innerHTML = `<style>${dialogStyle}</style><form>` +
+            `<div class="loa-head"><h2 id="loa-ap-heading">Archipelago</h2><span class="loa-pill" role="status"></span></div>
                <p class="loa-seed"></p><div class="loa-bar" aria-hidden="true"><span></span></div>
                <div class="loa-tabs" role="tablist">${tabs.map(([id, title]) =>
                    `<button type="button" role="tab" data-tab="${id}">${title}</button>`).join("")}</div>
@@ -9672,7 +9616,7 @@
                  checks left in the current room, open timed quests and items waiting for bag space. Both can also be
                  switched in the game's Options ("Archipelago Log", "Archipelago Tracker") and hide during dialogue,
                  menus and battles.</p></div>
-               <p class="loa-error" role="alert"></p>`) +
+               <p class="loa-error" role="alert"></p>` +
             `<div class="loa-actions"><button type="submit"></button>
              <button type="button" class="loa-disconnect">Disconnect</button>
              <button type="button" class="loa-close">Close</button>
@@ -9712,71 +9656,66 @@
             if (reactivate) scene._commandWindow.activate();
         };
         menuDialog = { close };
-        submit.textContent = advance ? "Advance day" : "Connect";
-        closeButton.textContent = advance ? "Keep exploring" : "Close";
-        disconnect.hidden = advance;
-        if (advance) {
-            select(".loa-description").textContent = `Advance from Day ${$gameVariables.value(15)} to Day ${$gameVariables.value(15) + 1}? Vanilla quest deadlines still apply, and checks can become unavailable. You can keep exploring this day. Day 15 is final: unfinished quests do not advance afterward. Any ending requests release of remaining checks; the host must allow release.`;
-        } else {
-            try {
-                const preferences = JSON.parse(globalThis.localStorage?.getItem("lookOutsideArchipelagoConnection") || "null");
-                if (preferences && typeof preferences.url === "string" && typeof preferences.name === "string") {
-                    lastServerUrl = preferences.url;
-                    lastSlotName = preferences.name;
-                }
-            } catch (_) { /* Unavailable or corrupt preferences do not block connection. */ }
-            for (const [key, title, type, value, placeholder] of [
-                ["url", "Server", "text", lastServerUrl, "archipelago.gg:38281"],
-                ["name", "Slot name", "text", lastSlotName, "Your player name"],
-                ["password", "Password (optional)", "password", "", ""],
-            ]) {
-                const label = document.createElement("label");
-                label.textContent = title;
-                const input = document.createElement("input");
-                input.id = `loa-ap-${key}`;
-                input.type = type;
-                input.value = value;
-                input.placeholder = placeholder;
-                input.autocomplete = "off";
-                input.spellcheck = false;
-                input.required = key !== "password";
-                label.append(input);
-                select(".loa-fields").append(label);
-                fields[key] = input;
+        submit.textContent = "Connect";
+        closeButton.textContent = "Close";
+        try {
+            const preferences = JSON.parse(globalThis.localStorage?.getItem("lookOutsideArchipelagoConnection") || "null");
+            if (preferences && typeof preferences.url === "string" && typeof preferences.name === "string") {
+                lastServerUrl = preferences.url;
+                lastSlotName = preferences.name;
             }
-            select(".loa-connection").open = connectionState !== "connected";
-            const showTab = id => {
-                for (const button of dialog.querySelectorAll("[data-tab]")) {
-                    button.setAttribute("aria-selected", String(button.dataset.tab === id));
-                }
-                for (const panel of dialog.querySelectorAll("[data-panel]")) panel.hidden = panel.dataset.panel !== id;
-            };
+        } catch (_) { /* Unavailable or corrupt preferences do not block connection. */ }
+        for (const [key, title, type, value, placeholder] of [
+            ["url", "Server", "text", lastServerUrl, "archipelago.gg:38281"],
+            ["name", "Slot name", "text", lastSlotName, "Your player name"],
+            ["password", "Password (optional)", "password", "", ""],
+        ]) {
+            const label = document.createElement("label");
+            label.textContent = title;
+            const input = document.createElement("input");
+            input.id = `loa-ap-${key}`;
+            input.type = type;
+            input.value = value;
+            input.placeholder = placeholder;
+            input.autocomplete = "off";
+            input.spellcheck = false;
+            input.required = key !== "password";
+            label.append(input);
+            select(".loa-fields").append(label);
+            fields[key] = input;
+        }
+        select(".loa-connection").open = connectionState !== "connected";
+        const showTab = id => {
             for (const button of dialog.querySelectorAll("[data-tab]")) {
-                button.addEventListener("click", () => showTab(button.dataset.tab));
+                button.setAttribute("aria-selected", String(button.dataset.tab === id));
             }
-            showTab("overview");
-            const hudToggle = select(".loa-hud-toggle");
-            const hudSide = select(".loa-hud-side");
-            const hudLines = select(".loa-hud-lines");
-            const trackerToggle = select(".loa-tracker-toggle");
-            const soundToggle = select(".loa-sound-toggle");
-            soundToggle.checked = configManager?.loaSound !== false;
-            hudToggle.checked = configManager?.loaHud !== false;
-            trackerToggle.checked = configManager?.loaTracker !== false;
-            hudSide.value = configManager?.loaHudRight ? "right" : "left";
-            hudLines.value = String(configManager?.loaHudLines ?? 3);
-            const saveHudSettings = () => {
-                if (!configManager) return;
-                configManager.loaHud = hudToggle.checked;
-                configManager.loaHudRight = hudSide.value === "right";
-                configManager.loaHudLines = Number(hudLines.value);
-                configManager.loaTracker = trackerToggle.checked;
-                configManager.loaSound = soundToggle.checked;
-                try { configManager.save?.(); } catch (_) { /* Settings still apply this session. */ }
-            };
-            for (const control of [hudToggle, hudSide, hudLines, trackerToggle, soundToggle]) {
-                control.addEventListener("change", saveHudSettings);
-            }
+            for (const panel of dialog.querySelectorAll("[data-panel]")) panel.hidden = panel.dataset.panel !== id;
+        };
+        for (const button of dialog.querySelectorAll("[data-tab]")) {
+            button.addEventListener("click", () => showTab(button.dataset.tab));
+        }
+        showTab("overview");
+        const hudToggle = select(".loa-hud-toggle");
+        const hudSide = select(".loa-hud-side");
+        const hudLines = select(".loa-hud-lines");
+        const trackerToggle = select(".loa-tracker-toggle");
+        const soundToggle = select(".loa-sound-toggle");
+        soundToggle.checked = configManager?.loaSound !== false;
+        hudToggle.checked = configManager?.loaHud !== false;
+        trackerToggle.checked = configManager?.loaTracker !== false;
+        hudSide.value = configManager?.loaHudRight ? "right" : "left";
+        hudLines.value = String(configManager?.loaHudLines ?? 3);
+        const saveHudSettings = () => {
+            if (!configManager) return;
+            configManager.loaHud = hudToggle.checked;
+            configManager.loaHudRight = hudSide.value === "right";
+            configManager.loaHudLines = Number(hudLines.value);
+            configManager.loaTracker = trackerToggle.checked;
+            configManager.loaSound = soundToggle.checked;
+            try { configManager.save?.(); } catch (_) { /* Settings still apply this session. */ }
+        };
+        for (const control of [hudToggle, hudSide, hudLines, trackerToggle, soundToggle]) {
+            control.addEventListener("change", saveHudSettings);
         }
         const renderOverview = snapshot => {
             const pill = select(".loa-pill");
@@ -9793,14 +9732,14 @@
                 ["Checks", `${snapshot.checked} / ${snapshot.total}`, snapshot.unsynced ? `${snapshot.unsynced} waiting to send` : "sent to the server"],
                 ["Items received", snapshot.received, snapshot.waiting ? `${snapshot.waiting} waiting for bag space` : "all delivered"],
                 ["Goal", snapshot.goal, "any real ending counts"],
-                ["Calendar", snapshot.day, dayHold ? "use Go to Next Day" : "running"],
+                ["Calendar", snapshot.day, (globalThis.$gameVariables?.value(15) ?? 0) >= 15
+                    ? "the home door can end the run" : "a new day starts at 4:00"],
                 ...(companionChecks || owned.length ? [["Upgrades", `${owned.length} / ${companionUpgrades.length}`,
                     owned.map(entry => entry.name).join(", ") || "none yet"]] : []),
             ].map(([title, value, note]) => `<div class="loa-card"><small>${escapeHtml(title)}</small>` +
                 `<b>${escapeHtml(value)}</b><small>${escapeHtml(note)}</small></div>`).join(""));
             const notes = [goalReleaseSummary(), connectionError || "",
-                deathLinkEnabled ? "DeathLink is on: a death in the room takes one of your party members." : "",
-                dayHold && (globalThis.$gameVariables?.value(15) ?? 0) >= 15 ? "Day 15 is final. Finish an ending to release unfinished checks." : ""];
+                deathLinkEnabled ? "DeathLink is on: a death in the room takes one of your party members." : ""];
             select(".loa-note").textContent = notes.filter(Boolean).join("\n");
         };
         const renderLists = () => {
@@ -9846,17 +9785,10 @@
                 setHtml(select(".loa-locations"), `<p class="loa-muted">Missing does not mean reachable: quests, ` +
                     `dates and fights can still block a location.</p>${rows.join("")}`);
             }
-            const warnings = deadlineSummary(false);
+            const warnings = deadlineSummary();
             select(".loa-deadline-text").textContent = warnings || "No tracked deadlines are open.";
         };
         const refresh = () => {
-            if (advance) {
-                const deadlines = select(".loa-deadlines");
-                const warnings = deadlineSummary(true);
-                deadlines.hidden = !warnings;
-                if (deadlines.lastElementChild.textContent !== warnings) deadlines.lastElementChild.textContent = warnings;
-                return;
-            }
             renderOverview(statusSnapshot());
             renderLists();
             submit.disabled = connectionState === "connecting";
@@ -9868,12 +9800,6 @@
             event.preventDefault();
             error.textContent = "";
             try {
-                if (advance) {
-                    advanceDayForDevelopment();
-                    close(false);
-                    scene.popScene();
-                    return;
-                }
                 // Room pages show "/connect host:port"; accept that line as pasted.
                 let url = fields.url.value.trim().replace(/^\/connect\s+/i, "").trim();
                 if (!url.includes("://")) url = `ws://${url}`;
@@ -9897,7 +9823,7 @@
         globalThis.Input?.clear();
         globalThis.TouchInput?.clear();
         dialog.showModal();
-        (advance ? closeButton : connectionState === "connected" ? select("[data-tab]")
+        (connectionState === "connected" ? select("[data-tab]")
             : fields.name.value ? fields.url : fields.name).focus();
         refresh();
         timer = setInterval(refresh, 400);
@@ -10955,14 +10881,6 @@
         // An early Radio can already be charging when Scout is first met.
         // Keep its native timer; resetting it here would bypass the cooldown.
         if (isScoutInitialization(this, 46, 122, [456, 456, 0, 0, 8], params)) return true;
-        if (active && identity && !dayHold &&
-            globalThis.$dataSystem?.advanced?.gameId === auditedBuild.gameId &&
-            globalThis.$dataSystem?.versionId === auditedBuild.versionId &&
-            (isTimePassesCommand(this, 59, 122, [15, 15, 1, 0, 1]) ||
-                isTimePassesCommand(this, 78, 122, [15, 15, 1, 0, 1]))) {
-            pendingDayRollover = true;
-            return true;
-        }
         const terminal = matchingQuestTerminal(this, 122, params);
         const danIntro = [[3, [568, 568, 0, 1, 812]], [9, [568, 568, 0, 1, 813]]].some(([index, expected]) =>
             JSON.stringify(params) === JSON.stringify(expected) && isCommonEventCommand(this, 211, index, 122, expected));
@@ -10975,30 +10893,10 @@
         if (result && outageFinished) finishPowerOutage();
         return result;
     };
-    const originalCommand117 = interpreter.command117;
-    interpreter.command117 = function(params) {
-        if (calendarEnabled()) {
-            if (params?.[0] === 4) {
-                if (dayHold) {
-                    clearHeldTime();
-                    return true;
-                }
-                limitTimeToRollover();
-            }
-            if (pendingDayRollover && isTimePassesCommand(this, 135, 117, [6])) {
-                pendingDayRollover = false;
-                dayHold = true;
-                console.info(`[${pluginName}] Day ${globalThis.$gameVariables?.value(15)} held`);
-                return true;
-            }
-        }
-        return originalCommand117.call(this, params);
-    };
-
     const originalSetupChoices = interpreter.setupChoices;
     if (originalSetupChoices) {
         interpreter.setupChoices = function(params) {
-            if ($gameVariables.value(15) === 15 && isHomeDoorCommand(this, 2, 3, 102, params) &&
+            if ($gameVariables.value(15) >= 15 && isHomeDoorCommand(this, 2, 3, 102, params) &&
                 JSON.stringify(params) === JSON.stringify([["Let's go.", "Not yet."], 1, 0, 2, 0])) {
                 // Preserve native branch numbers, cancel behavior, and the original event list.
                 return originalSetupChoices.call(this,
@@ -11022,7 +10920,7 @@
     const originalCommand402 = interpreter.command402;
     if (originalCommand402) {
         interpreter.command402 = function(params) {
-            const explore = $gameVariables.value(15) === 15 &&
+            const explore = $gameVariables.value(15) >= 15 &&
                 isHomeDoorCommand(this, 2, 4, 402, [0, "Let's go."]) &&
                 this._branch[this._indent] === 2;
             const result = originalCommand402.call(this, params);
@@ -11038,7 +10936,7 @@
     const originalCommand111 = interpreter.command111;
     if (originalCommand111) {
         interpreter.command111 = function(params) {
-            if ((dayHold || $gameVariables.value(15) === 15) &&
+            if ($gameVariables.value(15) >= 15 &&
                 isHomeDoorCommand(this, 0, 0, 111, [1, 13, 0, 3, 0])) {
                 this._branch[this._indent] = false;
                 this.skipBranch();
@@ -11221,6 +11119,7 @@
             if (saveError) return;
             restoreInterpreterSources();
             const result = originalSceneMapUpdate.apply(this, arguments);
+            finishCarriedRollover();
             recoverSalvageChecks();
             deliverPendingItems();
             updatePowerPresentation();
@@ -11345,10 +11244,6 @@
             if (globalThis.process?.env?.LOA_DEV_MODE === "1" || identity) {
                 this.addCommand("Archipelago", "loaArchipelago", true);
             }
-            if (active && identity && dayHold &&
-                globalThis.$gameVariables?.value(15) < 15) {
-                this.addCommand("Go to Next Day", "loaNextDay", true);
-            }
         };
         const originalCreateCommandWindow = sceneMenu.createCommandWindow;
         sceneMenu.createCommandWindow = function() {
@@ -11365,17 +11260,6 @@
                     globalThis.alert?.(error.message);
                 }
                 this._commandWindow.activate();
-            });
-            this._commandWindow.setHandler("loaNextDay", () => {
-                if (showMenuDialog(this, true)) return;
-                try {
-                    advanceDayForDevelopment();
-                    this.popScene();
-                } catch (error) {
-                    console.error(`[${pluginName}] day advance failed`, error);
-                    globalThis.alert?.(error.message);
-                    this._commandWindow.activate();
-                }
             });
         };
         const originalTerminate = sceneMenu.terminate;
@@ -11459,22 +11343,14 @@
             return { enabled: activityChecks, mealsCooked,
                 locations: activityLocations.map(entry => ({ ...entry })) };
         },
-        get pendingDayRollover() { return pendingDayRollover; },
-        get dayHold() { return dayHold; },
         remainingDeadlines() { return remainingDeadlines(); },
         questDeadlines() { return questDeadlines(); },
         roomChecks(mapId) { return roomChecks(mapId); },
-        deadlineSummary(advance = false) { return deadlineSummary(advance); },
+        deadlineSummary() { return deadlineSummary(); },
         powerState() { return { ...powerState, notices: powerState.notices.slice() }; },
         updatePowerForDevelopment() {
             if (globalThis.process?.env?.LOA_DEV_MODE !== "1") throw new Error("Development power update requires LOA_DEV_MODE=1");
             updatePowerPresentation();
-        },
-        advanceDayForDevelopment() {
-            if (globalThis.process?.env?.LOA_DEV_MODE !== "1") {
-                throw new Error("Development day advance requires LOA_DEV_MODE=1");
-            }
-            advanceDayForDevelopment();
         },
         connectForDevelopment(options) {
             if (globalThis.process?.env?.LOA_DEV_MODE !== "1") {

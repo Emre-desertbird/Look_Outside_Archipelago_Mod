@@ -938,7 +938,7 @@ test("Elevator Freak victory check and received access stay independent", () => 
     assert.equal(currentEvent.meetsConditions(pages[1]), true);
 });
 
-test("normal rollover waits for explicit day advance and runs vanilla newDay", () => {
+test("days roll over naturally: midnight counts the day and 04:00 runs vanilla newDay", () => {
     DataManager.setupNewGame();
     currentDay = 7;
     commonEventCalls.length = 0;
@@ -949,108 +949,59 @@ test("normal rollover waits for explicit day advance and runs vanilla newDay", (
     timePasses[59] = { code: 122, parameters: dayIncrement };
     timePasses[78] = { code: 122, parameters: dayIncrement };
     timePasses[135] = { code: 117, parameters: [6] };
-    const interpreter = new FakeInterpreter(3, 1, 0, 59, 122, dayIncrement);
-    interpreter._list = timePasses;
-
-    interpreter.command122(dayIncrement);
-    assert.equal(currentDay, 8); // Vanilla behavior before the AP save is bound.
-    assert.throws(() => plugin.bindIdentityForDevelopment("too-late", 0, 2), /not eligible/);
-    DataManager.setupNewGame();
-    currentDay = 7;
     plugin.bindIdentityForDevelopment("seed-day", 0, 2);
     plugin.activateForDevelopment();
+    const interpreter = new FakeInterpreter(3, 1, 0, 59, 122, dayIncrement);
+    interpreter._list = timePasses;
     interpreter.command122(dayIncrement);
-    assert.equal(currentDay, 7);
-    assert.equal(plugin.pendingDayRollover, true);
-    const pendingSave = DataManager.makeSaveContents();
-    DataManager.extractSaveContents(pendingSave);
-    assert.equal(plugin.pendingDayRollover, true);
-
-    interpreter._index = 135;
-    interpreter.command117([6]);
-    assert.equal(plugin.dayHold, true);
-    assert.deepEqual(commonEventCalls, []);
-    const anotherTimeCall = new FakeInterpreter(3, 1, 0, 0, 117, [4]);
-    variableValues.set(19, 480);
-    variableValues.set(116, 40);
-    anotherTimeCall.command117([4]);
-    assert.deepEqual(commonEventCalls, []);
-    assert.equal($gameVariables.value(19), 0);
-    assert.equal($gameVariables.value(116), 0);
-
-    const heldSave = DataManager.makeSaveContents();
-    DataManager.extractSaveContents(heldSave);
-    assert.equal(plugin.dayHold, true);
-    const menu = new FakeMenuWindow();
-    menu.addOriginalCommands();
-    assert.deepEqual(menu.commands.map(command => command.symbol),
-        ["loaArchipelago", "loaNextDay"]);
-    const menuScene = new FakeSceneMenu();
-    menuScene.createCommandWindow();
-    variableValues.set(19, 1000); // An action may queue time without calling TimePasses yet.
-    variableValues.set(116, 25);
-    menuScene._commandWindow.handlers.loaNextDay();
-    assert.equal(menuScene.popped, true);
     assert.equal(currentDay, 8);
-    assert.equal(plugin.dayHold, false);
-    assert.equal($gameVariables.value(19), 0);
-    assert.equal($gameVariables.value(116), 0);
-    assert.deepEqual(reservedCommonEvents, [6]);
-    assert.throws(() => plugin.advanceDayForDevelopment(), /No bound Archipelago day hold/);
-    reservedCommonEvents.length = 0;
-    const normalMenu = new FakeMenuWindow();
-    normalMenu.addOriginalCommands();
-    assert.deepEqual(normalMenu.commands.map(command => command.symbol),
-        ["loaArchipelago"]);
-
-    const cheatDayWrite = new FakeInterpreter(3, 31, 0, 36, 122, dayIncrement);
-    cheatDayWrite.command122(dayIncrement);
-    assert.equal(currentDay, 9); // Different source keeps its own vanilla behavior.
-
-    DataManager.setupNewGame();
-    currentDay = 15;
-    reservedCommonEvents.length = 0;
-    plugin.bindIdentityForDevelopment("seed-final-day", 0, 2);
-    plugin.activateForDevelopment();
-    interpreter._index = 59;
-    interpreter.command122(dayIncrement);
     interpreter._index = 135;
     interpreter.command117([6]);
-    assert.equal(plugin.dayHold, true);
-    const finalDayMenu = new FakeMenuWindow();
-    finalDayMenu.addOriginalCommands();
-    assert.deepEqual(finalDayMenu.commands.map(command => command.symbol),
-        ["loaArchipelago"]);
-    assert.throws(() => plugin.advanceDayForDevelopment(), /final supported/);
-    assert.equal(currentDay, 15);
-    assert.deepEqual(reservedCommonEvents, []);
-});
-
-test("long actions stop at the native 04:00 newDay boundary", () => {
-    DataManager.setupNewGame();
-    const caller = new FakeInterpreter(3, 66, 0, 78, 117, [4]);
+    assert.deepEqual(commonEventCalls, [6]);
+    // Queued action time is no longer cut at 04:00 or discarded afterwards.
     variableValues.set(16, 23);
     variableValues.set(17, 40);
     variableValues.set(19, 480);
     variableValues.set(116, 30);
-    caller.command117([4]);
-    assert.equal($gameVariables.value(19), 480); // Inactive game stays vanilla.
-    plugin.bindIdentityForDevelopment("clock-limit", 0, 1);
-    plugin.activateForDevelopment();
-    caller.command117([4]);
-    assert.equal($gameVariables.value(19), 260);
-    assert.equal($gameVariables.value(116), 0);
-    variableValues.set(16, 3);
-    variableValues.set(17, 45);
-    variableValues.set(19, 20);
-    caller.command117([4]);
-    assert.equal($gameVariables.value(19), 15);
-    variableValues.set(16, 4);
-    variableValues.set(17, 0);
-    variableValues.set(19, 30);
-    caller.command117([4]);
-    assert.equal($gameVariables.value(19), 30); // An ordinary new morning.
+    new FakeInterpreter(3, 66, 0, 78, 117, [4]).command117([4]);
+    assert.equal($gameVariables.value(19), 480);
+    assert.equal($gameVariables.value(116), 30);
+    const menu = new FakeMenuWindow();
+    menu.addOriginalCommands();
+    assert.deepEqual(menu.commands.map(command => command.symbol), ["loaArchipelago"]);
+    const saved = DataManager.makeSaveContents().lookOutsideArchipelago;
+    assert.equal(saved.dayHold, false);
+    assert.equal(saved.pendingDayRollover, false);
     variableValues.clear();
+});
+
+test("a save made during the old 04:00 hold finishes its new day after loading", () => {
+    const heldSave = (dayHold, pendingDayRollover) => {
+        DataManager.setupNewGame();
+        plugin.bindIdentityForDevelopment(`old-hold-${dayHold}`, 0, 2);
+        plugin.activateForDevelopment();
+        const save = DataManager.makeSaveContents();
+        Object.assign(save.lookOutsideArchipelago, { dayHold, pendingDayRollover });
+        return save;
+    };
+    const map = new FakeSceneMap();
+    // Held at 04:00: the day count and vanilla newDay both still had to happen.
+    DataManager.extractSaveContents(heldSave(true, false));
+    currentDay = 9;
+    reservedCommonEvents.length = 0;
+    map.update();
+    assert.equal(currentDay, 10);
+    assert.deepEqual(reservedCommonEvents, [6]);
+    map.update();
+    assert.equal(currentDay, 10, "the carried rollover runs once");
+    // Midnight passed but not 04:00: only the day count was missing.
+    DataManager.extractSaveContents(heldSave(false, true));
+    currentDay = 9;
+    reservedCommonEvents.length = 0;
+    map.update();
+    assert.equal(currentDay, 10);
+    assert.deepEqual(reservedCommonEvents, []);
+    DataManager.setupNewGame();
 });
 
 test("planetarium solution checks once and access arrives separately", () => {
@@ -1824,9 +1775,7 @@ test("quest deadline warnings follow Charan, Leigh and crossword native state", 
             ["Charan's Rose", "Leigh's Phone", "Crossword book"]);
         assert.match(quest("Charan's Rose").text, /do not have the Rose/);
         assert.match(quest("Crossword book").text, /not picked up the crossword book/);
-        // Early days list everything in Status but do not nag on Next Day.
-        assert.doesNotMatch(plugin.deadlineSummary(true), /Charan|Leigh|Crossword/);
-        assert.match(plugin.deadlineSummary(false), /Charan's Rose: 2 unchecked, closes on Day 6/);
+        assert.match(plugin.deadlineSummary(), /Charan's Rose: 2 unchecked, closes on Day 6/);
         assert.deepEqual(plugin.questDeadlines().map(entry => [entry.group, entry.started]),
             [["Charan's Rose", false], ["Leigh's Phone", false], ["Crossword book", false]]);
         assert.equal(quest("Charan's Rose").short, "find the Rose, give it by Day 5");
@@ -1834,13 +1783,13 @@ test("quest deadline warnings follow Charan, Leigh and crossword native state", 
         held.add(360);
         currentDay = 5;
         assert.doesNotMatch(quest("Charan's Rose").text, /do not have/);
-        assert.match(plugin.deadlineSummary(true), /Charan's Rose/);
+        assert.match(plugin.deadlineSummary(), /Charan's Rose/);
         assert.equal(quest("Charan's Rose").atRisk, false);
         switchValues.set(680, true);
         assert.equal(quest("Charan's Rose"), undefined);
         currentDay = 6;
         assert.equal(quest("Charan's Cave").atRisk, false);
-        assert.match(plugin.deadlineSummary(true), /Charan's Cave/);
+        assert.match(plugin.deadlineSummary(), /Charan's Cave/);
         switchValues.set(1097, true);
         assert.equal(quest("Charan's Cave").atRisk, true);
         switchValues.delete(1097);
@@ -1867,7 +1816,7 @@ test("quest deadline warnings follow Charan, Leigh and crossword native state", 
         switchValues.set(237, true);
         variableValues.set(491, 42);
         currentDay = 12;
-        assert.match(plugin.deadlineSummary(true), /42 \/ 100 done/);
+        assert.match(plugin.deadlineSummary(), /42 \/ 100 done/);
         assert.deepEqual([quest("Crossword book").started, quest("Crossword book").short], [true, "42 / 100 puzzles"]);
         assert.doesNotMatch(quest("Crossword book").text, /not picked up/);
         variableValues.set(491, 100);

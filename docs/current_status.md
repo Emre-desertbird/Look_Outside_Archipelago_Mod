@@ -16,7 +16,8 @@ native deadlines, corrected Day3/Day8 openings, and conservative quest waits.
 - **36 quest-resolution groups**, including the fungus rescues, Darryl and the
   Spider Husk. Alternate outcomes preserve native consequences.
 - **30 Simple Keys** and **two Black Keys** delivered through the reviewed bundles.
-- Vanilla quest dates/new-day waits, a 4 a.m. hold, and the Day15 home-door fallback.
+- Vanilla quest dates/new-day waits, natural day changes (the 4 a.m. hold was removed
+  in 0.0.7), and the Day15 home-door fallback.
   Any real ending on any day completes the goal and requests remaining-check release.
 - **55 Python tests and 45 Node tests pass**. Registry signatures and plugin sync pass.
 - Opening plain WebSocket failures retry TLS for hosted rooms. Successful secure

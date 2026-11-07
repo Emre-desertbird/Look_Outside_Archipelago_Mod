@@ -100,8 +100,8 @@ items. The Radio recharges after eight native hours; the Medic rests until a
 real new day. Neither recharge sends another check. Frederic's completed-quest
 offer checks on acceptance or refusal, and defeating him resolves the same check.
 
-At the 4 a.m. boundary, use **Go to Next Day** when ready. Quest dates and real
-new-day waits stay vanilla; time does not generate extra quest days after Day15.
+Days change naturally at 4 a.m., as in vanilla. Quest dates and real new-day
+waits stay vanilla.
 Any real ending on any day completes the goal. Day15's home-door ending is the
 fallback if quests remain unfinished. Cheat-mode Credits do not count.
 Ending choices are labeled at the roof, Wilhelmina's Word of Power and the

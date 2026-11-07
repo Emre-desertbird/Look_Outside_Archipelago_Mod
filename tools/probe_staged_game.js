@@ -1132,41 +1132,12 @@ async function main() {
             const list = $dataCommonEvents[4].list;
             const interpreter = new Game_Interpreter();
             interpreter.setup(list, 0);
-            $gameVariables.setValue(15, 7);
-            const before = $gameVariables.value(15);
-            interpreter._index = 59;
-            interpreter.command122(list[59].parameters);
-            const afterRollover = $gameVariables.value(15);
-            interpreter._index = 135;
-            interpreter.command117(list[135].parameters);
-            return { before, afterRollover, dayHold: LookOutsideArchipelago.dayHold };
-        })()`);
-        assert.equal(calendar.afterRollover, calendar.before);
-        assert.equal(calendar.dayHold, true);
-        const finalDay = await evaluate(`(() => {
-            DataManager.setupNewGame();
-            LookOutsideArchipelago.bindIdentityForDevelopment("runtime-final-day", 0, 1);
-            LookOutsideArchipelago.activateForDevelopment();
-            const list = $dataCommonEvents[4].list;
-            const interpreter = new Game_Interpreter();
-            interpreter.setup(list, 0);
             $gameVariables.setValue(15, 15);
             interpreter._index = 59;
             interpreter.command122(list[59].parameters);
-            interpreter._index = 135;
-            interpreter.command117(list[135].parameters);
-            let advanceError = null;
-            try {
-                LookOutsideArchipelago.advanceDayForDevelopment();
-            } catch (error) {
-                advanceError = error.message;
-            }
-            return { day: $gameVariables.value(15),
-                held: LookOutsideArchipelago.dayHold, advanceError };
+            return { day: $gameVariables.value(15) };
         })()`);
-        assert.equal(finalDay.day, 15);
-        assert.equal(finalDay.held, true);
-        assert.match(finalDay.advanceError, /final supported/);
+        assert.equal(calendar.day, 16, "midnight counts the day naturally, also after Day 15");
         const nativeCalendar = await evaluate(`(${require("../tests/native_calendar_probe").toString()})()`);
         const remainingQuestItems = await evaluate(`(${require("../tests/native_quest_item_probe").toString()})(
             ${JSON.stringify(registry.locations.filter(row => row.reviewed_quest_reward))})`);

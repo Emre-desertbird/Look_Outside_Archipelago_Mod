@@ -27,7 +27,7 @@ separate game copy; this project's installed Steam directory stays read-only.
   collect the original gift check while it is recharging. Confirm the Radio
   still takes eight native hours and the Medic still needs a real new day.
   Decline Frederic's completed-quest offer and confirm it awards the same check.
-- Exercise the 4 a.m. hold, manual day advancement, and deadline warnings. Quest
+- Exercise natural day changes and the deadline warnings. Quest
   dates remain vanilla, and some opportunities can expire despite available AP items.
 - Finish a real ending. Verify goal status and release on the server. For the
   fallback route, reach Day15 with an unfinished quest and use the home door.

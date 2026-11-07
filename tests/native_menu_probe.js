@@ -158,46 +158,17 @@ module.exports = async function nativeMenuProbe(slotData) {
         assert.equal(scene._commandWindow.active, true);
         scenarios++;
 
+        // Days are never held, so the menu has no "Go to Next Day"; deadlines live in their tab.
         $gameVariables.setValue(15, 3);
         $gameVariables.setValue(16, 4);
-        const interpreter = new Game_Interpreter();
-        interpreter.setup($dataCommonEvents[4].list, 0);
-        interpreter._index = 59;
-        interpreter.command122([15, 15, 1, 0, 1]);
-        interpreter._index = 135;
-        interpreter.command117([6]);
-        assert.ok(ap.dayHold);
         scene = menu();
-        scene._commandWindow.callHandler("loaNextDay");
-        assert.equal(document.activeElement, control(".loa-close"));
-        assert.equal(control(".loa-deadlines").hidden, false);
-        assert.equal(control(".loa-deadlines").open, true);
-        assert.match(control(".loa-description").textContent, /Vanilla quest deadlines still apply/);
-        assert.match(control(".loa-description").textContent, /unfinished quests do not advance afterward/);
-        assert.match(control(".loa-deadlines summary").textContent, /not a complete list/);
-        const actionBounds = control(".loa-actions").getBoundingClientRect();
-        assert.ok(actionBounds.top >= 0 && actionBounds.bottom <= innerHeight,
-            "Day-advance actions must remain visible with the expanded warning");
-        assert.match(control(".loa-deadlines div").textContent, /8 unchecked/);
-        assert.match(control(".loa-deadlines div").textContent, /noon on Day 4/);
-        assert.match(control(".loa-deadlines div").textContent, /Jawbone Club/);
-        assert.doesNotMatch(control(".loa-deadlines div").textContent, /Joel Resolution|Benjamin|Madison/);
+        assert.ok(!scene._commandWindow._list.some(command => command.symbol === "loaNextDay"));
+        scene._commandWindow.callHandler("loaArchipelago");
+        assert.match(control(".loa-deadline-text").textContent, /8 unchecked/);
+        assert.match(control(".loa-deadline-text").textContent, /noon on Day 4/);
+        assert.match(control(".loa-deadline-text").textContent, /Jawbone Club/);
+        assert.doesNotMatch(control(".loa-deadline-text").textContent, /Joel Resolution|Benjamin|Madison/);
         control(".loa-close").click();
-        assert.equal($gameVariables.value(15), 3);
-        assert.ok(ap.dayHold);
-        assert.equal(scene.popped, false);
-        scenarios++;
-
-        scene._commandWindow.callHandler("loaNextDay");
-        for (const event of $gameMap.events()) event.clearStartingFlag();
-        control("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-        assert.equal($gameVariables.value(15), 4, JSON.stringify({ error: dialog()?.querySelector(".loa-error").textContent,
-            eventRunning: $gameMap.isEventRunning(), reserved: $gameTemp._commonEventQueue }));
-        assert.equal(ap.dayHold, false);
-        assert.equal(scene.popped, true);
-        assert.equal(dialog(), null);
-        assert.ok($gameTemp.isCommonEventReserved());
-        $gameTemp.clearCommonEventReservation();
         scenarios++;
 
         $gameVariables.setValue(16, 12);

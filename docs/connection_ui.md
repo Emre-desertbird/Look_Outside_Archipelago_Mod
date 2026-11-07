@@ -33,7 +33,7 @@ received items are listed on the Items tab with sender and location, for the
 current game session. While the log overlay is on, it replaces this notice.
 
 The map overlay has four compact rows: an analog clock with the day and time
-(and *(held)* at the 4 a.m. stop) plus a connection dot; a check progress bar
+plus a connection dot; a check progress bar
 with the server's count; the single most urgent deadline, only when one closes
 within two days or is at risk; and the latest log lines (0, 3, 6 or 10; default
 3). It refreshes at most four times a second.
@@ -65,10 +65,9 @@ game config). Nothing it shows changes checks, items or game time. Replayed pack
 until it has actually been delivered. Power Restored retains its dedicated
 outage/restoration messages.
 
-Go to Next Day asks for confirmation, with Keep exploring focused by default.
-Confirming advances exactly once through the existing native calendar hook.
-Eight expiring teeth-apartment checks are listed on the Deadlines tab and in the day
-confirmation before their Day 4 noon deadline. Checked entries disappear from
+Days change naturally at 4 a.m., as in vanilla (0.0.7 removed the old day hold
+and its Go to Next Day entry). Eight expiring teeth-apartment checks are listed on
+the Deadlines tab before their Day 4 noon deadline. Checked entries disappear from
 the list. The broader expiry audit remains unfinished; see `calendar_deadlines.md`.
 
 Three audited quest cutoffs are also listed, read from native state:
@@ -82,9 +81,8 @@ Three audited quest cutoffs are also listed, read from native state:
   note if the book (switch237) is not picked up yet. It is hidden once any
   Wilhelmina reward is checked.
 
-Status lists every open quest cutoff. Go to Next Day lists one when its day
-is next, or from Day4 (Rose), Day8 (Phone), Day11 (crossword), or the last day
-on which Leigh's remaining steps still fit. Warnings never block advancing.
+Status and the Deadlines tab list every open quest cutoff; the overlay shows the
+most urgent one. Warnings never block time.
 
 The dialog uses keyboard and pointer input. It isolates text entry from RPG
 Maker's game key handlers and clears held input on open/close. Scene changes or
